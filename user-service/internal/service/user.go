@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/dto"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/models"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/repository"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/pkg/jwt"
 	"golang.org/x/crypto/bcrypt"
+	"log"
 	"strings"
 	"time"
 )
@@ -17,18 +20,28 @@ var (
 	ErrAlreadyUserExists  = errors.New("user already exists")
 )
 
+type EmailSender interface {
+	SendVerificationEmail(to, username, token string) error
+}
+
 type AuthService struct {
 	userRepo     *repository.UserRepository
 	tokenManager *jwt.TokenManager
+	emailRepo    *repository.EmailVerificationRepository
+	emailSender  EmailSender
 }
 
 func NewAuthService(
 	userRepo *repository.UserRepository,
 	tokenManager *jwt.TokenManager,
+	emailRepo *repository.EmailVerificationRepository,
+	emailSender EmailSender,
 ) *AuthService {
 	return &AuthService{
 		userRepo:     userRepo,
 		tokenManager: tokenManager,
+		emailRepo:    emailRepo,
+		emailSender:  emailSender,
 	}
 }
 
@@ -53,6 +66,28 @@ func (s *AuthService) Register(ctx context.Context, req *dto.RegisterUserRequest
 		if errors.Is(err, repository.ErrUserAlreadyExists) {
 			return nil, ErrAlreadyUserExists
 		}
+		return nil, err
+	}
+
+	token, err := s.generateVerificationToken()
+	if err != nil {
+		return nil, err
+	}
+
+	ev := &models.EmailVerification{
+		UserID:    user.ID,
+		Token:     token,
+		ExpiresAt: time.Now().Add(time.Hour * 24),
+	}
+
+	if err = s.emailRepo.Create(ctx, ev); err != nil {
+		return nil, err
+	}
+
+	log.Println("helloworld")
+
+	err = s.emailSender.SendVerificationEmail(user.Email, user.Username, token)
+	if err != nil {
 		return nil, err
 	}
 
@@ -112,4 +147,25 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.Au
 		ExpiresIn:    int64(time.Until(expiresAt).Seconds()),
 		User:         user,
 	}, nil
+}
+
+func (s *AuthService) generateVerificationToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func (s *AuthService) VerifyEmail(ctx context.Context, token string) error {
+	ev, err := s.emailRepo.GetByToken(ctx, token)
+	if err != nil {
+		return err
+	}
+
+	if err := s.userRepo.MarkVerified(ctx, ev.UserID); err != nil {
+		return err
+	}
+
+	return s.emailRepo.MarkVerified(ctx, ev.ID)
 }

@@ -2,6 +2,7 @@ package mailer
 
 import (
 	"fmt"
+	"log"
 	"net/smtp"
 	"time"
 )
@@ -19,6 +20,8 @@ type SMTPMailer struct {
 func (m *SMTPMailer) SendVerificationEmail(to, username, token string) error {
 	auth := smtp.PlainAuth("", m.User, m.Pass, m.Host)
 	addr := fmt.Sprintf("%s:%d", m.Host, m.Port)
+
+	log.Println("helloworld")
 
 	link := fmt.Sprintf("%s/verify-email?token=%s", m.BaseURL, token)
 
@@ -38,6 +41,8 @@ func (m *SMTPMailer) SendVerificationEmail(to, username, token string) error {
 		"MIME-version: 1.0;\n"+
 		"Content-Type: text/html; charset=\"UTF-8\";\n%s",
 		subject, htmlBody)
+
+	log.Println("helloworld")
 
 	return smtp.SendMail(addr, auth, m.User, []string{to}, []byte(msg))
 }

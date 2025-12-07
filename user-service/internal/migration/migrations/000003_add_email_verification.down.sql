@@ -1,0 +1,3 @@
+DELETE INDEX idx_email_verifications_user_id;
+DELETE INDEX idx_email_verifications_token;
+DELETE TABLE email_verifications;

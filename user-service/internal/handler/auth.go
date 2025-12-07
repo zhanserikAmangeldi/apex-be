@@ -2,9 +2,11 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/dto"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/service"
+	"log"
 	"net/http"
 )
 
@@ -27,6 +29,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	authResp, err := h.authService.Register(c.Request.Context(), &req)
+	log.Println(err)
 	if err != nil {
 		if errors.Is(err, service.ErrAlreadyUserExists) {
 			c.JSON(http.StatusUnauthorized, dto.ErrorResponse{
@@ -37,7 +40,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "internal_server",
-			Message: "Failed to register user",
+			Message: fmt.Sprintf("Failed to register user with error: %v\"", err),
 		})
 		return
 	}

@@ -42,22 +42,26 @@ func main() {
 	log.Println("migrations applied successfully")
 
 	render := mailer.NewTemplateRender("internal/mailer/templates")
-
-	_ = mailer.SMTPMailer{
+	log.Println(render.BaseDir)
+	log.Printf("hello %v\n", cfg.SMPTPass)
+	smtp := mailer.SMTPMailer{
 		Host:    "smtp.gmail.com",
 		Port:    587,
 		User:    "amangeldi.janserik2017@gmail.com",
 		Pass:    cfg.SMPTPass,
 		From:    "Your new best chat application :))) <noreply@chat.com>",
-		BaseURL: "localhost:8081",
+		BaseURL: "localhost:8080",
 		Render:  render,
 	}
 
 	userRepo := repository.NewUserRepository(dbPool)
 	tokenManager := jwt.NewTokenManager(cfg.JWTSecret)
-	authService := service.NewAuthService(userRepo, tokenManager)
+	emailRepo := repository.NewEmailVerificationRepository(dbPool)
+	authService := service.NewAuthService(userRepo, tokenManager, emailRepo, &smtp)
+
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userRepo)
+	emailHandler := handler.NewEmailVerificationHandler(authService)
 
 	router := gin.Default()
 
@@ -77,6 +81,8 @@ func main() {
 			"database": "connected",
 		})
 	})
+
+	router.GET("/verify-email", emailHandler.VerifyEmail)
 
 	v1 := router.Group("/api/v1")
 	{
