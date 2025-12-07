@@ -28,6 +28,16 @@ type UpdateUserRequest struct {
 	Status      *string `json:"status,omitempty" binding:"omitempty,oneof=online offline away busy"`
 }
 
+type RequestResetCodeRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type ResetPasswordRequest struct {
+	Email       string `json:"email" binding:"required,email"`
+	Code        string `json:"code" binding:"required,len=6"`
+	NewPassword string `json:"new_password" binding:"required,min=8,max=32"`
+}
+
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message,omitempty"`

@@ -7,6 +7,7 @@ import (
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/middleware"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/repository"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/service"
+	"github.com/zhanserikAmangeldi/apex-be/user-service/pkg/email"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/pkg/jwt"
 	"log"
 	"net/http"
@@ -41,8 +42,16 @@ func main() {
 	log.Println("migrations applied successfully")
 
 	userRepo := repository.NewUserRepository(dbPool)
+	resetCodeRepo := repository.NewResetCodeRepository(dbPool)
 	tokenManager := jwt.NewTokenManager(cfg.JWTSecret)
-	authService := service.NewAuthService(userRepo, tokenManager)
+	emailService := email.NewEmailService(
+		cfg.SMTPHost,
+		cfg.SMTPPort,
+		cfg.SMTPUsername,
+		cfg.SMTPPassword,
+		cfg.FromEmail,
+	)
+	authService := service.NewAuthService(userRepo, resetCodeRepo, tokenManager, emailService)
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userRepo)
 
@@ -71,6 +80,8 @@ func main() {
 		{
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
+			auth.POST("/request-reset-code", authHandler.RequestResetCode)
+			auth.POST("/reset-password", authHandler.ResetPassword)
 		}
 	}
 

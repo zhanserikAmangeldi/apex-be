@@ -170,3 +170,23 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 
 	return nil
 }
+
+func (r *UserRepository) UpdatePassword(ctx context.Context, email string, passwordHash string) error {
+	query := `
+		UPDATE users
+		SET password_hash = $2, updated_at = CURRENT_TIMESTAMP
+		WHERE email = $1 AND deleted_at IS NULL
+	`
+
+	result, err := r.db.Exec(ctx, query, email, passwordHash)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrUserNotFound
+	}
+
+	return nil
+}
