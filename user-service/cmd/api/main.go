@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/handler"
+	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/middleware"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/repository"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/service"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/pkg/jwt"
@@ -43,6 +44,7 @@ func main() {
 	tokenManager := jwt.NewTokenManager(cfg.JWTSecret)
 	authService := service.NewAuthService(userRepo, tokenManager)
 	authHandler := handler.NewAuthHandler(authService)
+	userHandler := handler.NewUserHandler(userRepo)
 
 	router := gin.Default()
 
@@ -68,6 +70,18 @@ func main() {
 		auth := v1.Group("/auth")
 		{
 			auth.POST("/register", authHandler.Register)
+		}
+	}
+
+	protected := v1.Group("")
+	protected.Use(middleware.AuthMiddleware(tokenManager))
+	{
+
+		users := protected.Group("/users")
+		{
+			users.GET("/me", userHandler.GetMe)
+			users.PUT("/me", userHandler.UpdateMe)
+			users.GET("/:id", userHandler.GetUserByID)
 		}
 	}
 
