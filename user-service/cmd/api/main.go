@@ -1,14 +1,27 @@
 package main
 
-import "net/http"
+import (
+	"context"
+	"log"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/config"
+)
 
 func main() {
-	mux := http.NewServeMux()
+	cfg := config.LoadConfig()
+	ctx := context.Background()
 
-	mux.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Project is started!"))
-	})
+	dbPool, err := pgxpool.New(ctx, cfg.DBUrl)
+	if err != nil {
+		log.Fatalf("unable to connect to database: %v", err)
+	}
+	defer dbPool.Close()
 
-	http.ListenAndServe(":8080", mux)
+	if err := dbPool.Ping(ctx); err != nil {
+		log.Fatalf("unable to ping database: %v", err)
+	}
+	log.Println("connected to PostgreSQL")
+
 }
