@@ -79,6 +79,72 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*models.User, e
 	return user, nil
 }
 
+func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
+	query := `
+		SELECT id, username, email, password_hash, display_name, avatar_url,
+		       bio, status, last_seen_at, created_at, updated_at
+		FROM users
+		WHERE email = $1 AND deleted_at IS NULL
+	`
+
+	user := &models.User{}
+	err := r.db.QueryRow(ctx, query, email).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.PasswordHash,
+		&user.DisplayName,
+		&user.AvatarURL,
+		&user.Bio,
+		&user.Status,
+		&user.LastSeenAt,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*models.User, error) {
+	query := `
+		SELECT id, username, email, password_hash, display_name, avatar_url,
+		       bio, status, last_seen_at, created_at, updated_at
+		FROM users
+		WHERE username = $1 AND deleted_at IS NULL
+	`
+
+	user := &models.User{}
+	err := r.db.QueryRow(ctx, query, username).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.PasswordHash,
+		&user.DisplayName,
+		&user.AvatarURL,
+		&user.Bio,
+		&user.Status,
+		&user.LastSeenAt,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	return user, nil
+}
+
 func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	query := `
 		UPDATE users

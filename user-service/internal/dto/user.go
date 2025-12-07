@@ -9,6 +9,11 @@ type RegisterUserRequest struct {
 	DisplayName string `json:"display_name,omitempty" binding:"max=50"`
 }
 
+type LoginRequest struct {
+	Login    string `json:"login" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
 type AuthResponse struct {
 	AccessToken  string       `json:"access_token"`
 	RefreshToken string       `json:"refresh_token"`

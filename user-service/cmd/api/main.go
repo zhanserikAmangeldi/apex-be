@@ -70,6 +70,7 @@ func main() {
 		auth := v1.Group("/auth")
 		{
 			auth.POST("/register", authHandler.Register)
+			auth.POST("/login", authHandler.Login)
 		}
 	}
 
