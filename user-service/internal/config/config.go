@@ -15,6 +15,7 @@ type Config struct {
 	DBUrl      string
 	RedisHost  string
 	RedisPort  string
+	SMPTPass   string
 	JWTSecret  string
 }
 
@@ -26,6 +27,7 @@ func LoadConfig() *Config {
 		DBUser:     getEnv("USER_DB_USER", "user-service"),
 		DBPassword: getEnv("USER_DB_PASSWORD", "user-service"),
 		DBName:     getEnv("USER_DB_NAME", "user-service"),
+		SMPTPass:   getEnv("SMTP_PASSWORD", "smtp-service"),
 		JWTSecret:  getEnv("JWT_SECRET", "user-service-secret-word"),
 	}
 

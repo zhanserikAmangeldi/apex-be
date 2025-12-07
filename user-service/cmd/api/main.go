@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/handler"
+	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/mailer"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/middleware"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/repository"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/service"
@@ -39,6 +40,18 @@ func main() {
 		log.Fatalf("migration failed: %v", err)
 	}
 	log.Println("migrations applied successfully")
+
+	render := mailer.NewTemplateRender("internal/mailer/templates")
+
+	_ = mailer.SMTPMailer{
+		Host:    "smtp.gmail.com",
+		Port:    587,
+		User:    "amangeldi.janserik2017@gmail.com",
+		Pass:    cfg.SMPTPass,
+		From:    "Your new best chat application :))) <noreply@chat.com>",
+		BaseURL: "localhost:8081",
+		Render:  render,
+	}
 
 	userRepo := repository.NewUserRepository(dbPool)
 	tokenManager := jwt.NewTokenManager(cfg.JWTSecret)

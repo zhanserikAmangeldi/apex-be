@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Email Verification</title>
+    <style>
+        .container {
+            max-width: 500px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2563eb;
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .content {
+            padding: 30px;
+            color: #111827;
+            line-height: 1.6;
+        }
+
+        .btn {
+            display: inline-block;
+            background: #2563eb;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">Verify your email</div>
+    <div class="content">
+        <p>Hi <b>{{.Username}}</b>,</p>
+        <p>Thank you for registering! Please confirm your email by clicking the button below: </p>
+        <p>
+            <a href="{{.VerifyURL}}", class="btn">Verify Email</a>
+        </p>
+        <p>If the button doesn’t work, copy and paste this link:</p>
+        <p><a href="{{.VerifyURL}}">{{.VerifyURL}}</a></p>
+    </div>
+</div>
+</body>
+</html>
