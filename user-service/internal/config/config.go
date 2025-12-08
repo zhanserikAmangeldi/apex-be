@@ -7,39 +7,47 @@ import (
 )
 
 type Config struct {
-	Port       string
-	DBHost     string
-	DBPort     string
-	DBUser     string
-	DBPassword string
-	DBName     string
-	DBUrl      string
-	RedisHost  string
-	RedisPort  string
-	SMTPHost   string
-	SMTPPort   int
-	SMTPUser   string
-	SMPTPass   string
-	SMTPFrom   string
-	JWTSecret  string
+	Port         string
+	DBHost       string
+	DBPort       string
+	DBUser       string
+	DBPassword   string
+	DBName       string
+	DBUrl        string
+	RedisHost    string
+	RedisPort    string
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUser     string
+	SMPTPass     string
+	SMTPFrom     string
+	MinioHost    string
+	MinioApiPort string
+	MinioUser    string
+	MinioPass    string
+	JWTSecret    string
 }
 
 func LoadConfig() *Config {
 	cfg := &Config{
-		Port:       getEnv("HTTP_PORT", "8080"),
-		DBHost:     getEnv("USER_DB_HOST", "localhost"),
-		DBPort:     getEnv("USER_DB_PORT", "5432"),
-		DBUser:     getEnv("USER_DB_USER", "user-service"),
-		DBPassword: getEnv("USER_DB_PASSWORD", "user-service"),
-		DBName:     getEnv("USER_DB_NAME", "user-service"),
-		RedisHost:  getEnv("REDIS_HOST", "localhost"),
-		RedisPort:  getEnv("REDIS_PORT", "6379"),
-		SMTPHost:   getEnv("SMTP_HOST", "smtp.gmail.com"),
-		SMTPPort:   getEnvInt("SMTP_PORT", 587),
-		SMTPUser:   getEnv("SMTP_USER", "user-service@gmail.com"),
-		SMPTPass:   getEnv("SMTP_PASSWORD", "smtp-service"),
-		SMTPFrom:   getEnv("SMTP_FROM", "<nonreplay>@example.com"),
-		JWTSecret:  getEnv("JWT_SECRET", "user-service-secret-word"),
+		Port:         getEnv("HTTP_PORT", "8080"),
+		DBHost:       getEnv("USER_DB_HOST", "localhost"),
+		DBPort:       getEnv("USER_DB_PORT", "5432"),
+		DBUser:       getEnv("USER_DB_USER", "user-service"),
+		DBPassword:   getEnv("USER_DB_PASSWORD", "user-service"),
+		DBName:       getEnv("USER_DB_NAME", "user-service"),
+		RedisHost:    getEnv("REDIS_HOST", "localhost"),
+		RedisPort:    getEnv("REDIS_PORT", "6379"),
+		SMTPHost:     getEnv("SMTP_HOST", "smtp.gmail.com"),
+		SMTPPort:     getEnvInt("SMTP_PORT", 587),
+		SMTPUser:     getEnv("SMTP_USER", "user-service@gmail.com"),
+		SMPTPass:     getEnv("SMTP_PASSWORD", "smtp-service"),
+		SMTPFrom:     getEnv("SMTP_FROM", "<nonreplay>@example.com"),
+		MinioHost:    getEnv("MINIO_HOST", "localhost"),
+		MinioApiPort: getEnv("MINIO_API_PORT", "9000"),
+		MinioUser:    getEnv("MINIO_USER", "admin"),
+		MinioPass:    getEnv("MINIO_PASS", "admin123"),
+		JWTSecret:    getEnv("JWT_SECRET", "user-service-secret-word"),
 	}
 
 	cfg.DBUrl = cfg.getDBUrl()
