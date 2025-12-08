@@ -45,12 +45,12 @@ func main() {
 	log.Println(render.BaseDir)
 	log.Printf("hello %v\n", cfg.SMPTPass)
 	smtp := mailer.SMTPMailer{
-		Host:    "smtp.gmail.com",
-		Port:    587,
-		User:    "amangeldi.janserik2017@gmail.com",
+		Host:    cfg.SMTPHost,
+		Port:    cfg.SMTPPort,
+		User:    cfg.SMTPUser,
 		Pass:    cfg.SMPTPass,
-		From:    "Your new best chat application :))) <noreply@chat.com>",
-		BaseURL: "localhost:8080",
+		From:    cfg.SMTPFrom,
+		BaseURL: "localhost:" + cfg.Port,
 		Render:  render,
 	}
 
