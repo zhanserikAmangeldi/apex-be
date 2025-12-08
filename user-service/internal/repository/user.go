@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/models"
 	"strings"
+	"time"
 )
 
 var ErrUserNotFound = errors.New("user not found")
@@ -169,6 +170,17 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	}
 
 	return nil
+}
+
+func (r *UserRepository) UpdateLastSeen(ctx context.Context, userID int64) error {
+	query := `
+		UPDATE users
+		SET last_seen_at = $2
+		WHERE id = $1 AND deleted_at IS NULL
+	`
+
+	_, err := r.db.Exec(ctx, query, userID, time.Now())
+	return err
 }
 
 func (r *UserRepository) MarkVerified(ctx context.Context, userID int64) error {

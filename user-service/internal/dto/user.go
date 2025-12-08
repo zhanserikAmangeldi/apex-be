@@ -33,6 +33,10 @@ type TokensRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message,omitempty"`

@@ -70,7 +70,9 @@ func main() {
 	userRepo := repository.NewUserRepository(dbPool)
 	tokenManager := jwt.NewTokenManager(cfg.JWTSecret)
 	emailRepo := repository.NewEmailVerificationRepository(dbPool)
-	authService := service.NewAuthService(userRepo, tokenManager, emailRepo, &smtp, redisClient)
+	sessionRepo := repository.NewSessionRepository(dbPool)
+
+	authService := service.NewAuthService(userRepo, tokenManager, sessionRepo, emailRepo, &smtp, redisClient)
 
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userRepo)
@@ -104,12 +106,18 @@ func main() {
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/logout", authHandler.Logout)
+			auth.POST("/refresh", authHandler.RefreshToken)
 		}
 	}
 
 	protected := v1.Group("")
 	protected.Use(middleware.AuthMiddleware(tokenManager, redisClient))
 	{
+		auth := protected.Group("/auth")
+		{
+			auth.POST("/logout-all", authHandler.LogoutAll)
+			auth.GET("/sessions", authHandler.GetActiveSessions)
+		}
 
 		users := protected.Group("/users")
 		{
