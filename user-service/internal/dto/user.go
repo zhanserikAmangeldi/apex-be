@@ -28,6 +28,11 @@ type UpdateUserRequest struct {
 	Status      *string `json:"status,omitempty" binding:"omitempty,oneof=online offline away busy"`
 }
 
+type TokensRequest struct {
+	AccessToken  string `json:"access_token" binding:"required"`
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message,omitempty"`

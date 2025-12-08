@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"github.com/redis/go-redis/v9"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/dto"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/models"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/repository"
@@ -29,6 +31,7 @@ type AuthService struct {
 	tokenManager *jwt.TokenManager
 	emailRepo    *repository.EmailVerificationRepository
 	emailSender  EmailSender
+	redisClient  *redis.Client
 }
 
 func NewAuthService(
@@ -36,12 +39,14 @@ func NewAuthService(
 	tokenManager *jwt.TokenManager,
 	emailRepo *repository.EmailVerificationRepository,
 	emailSender EmailSender,
+	redisClient *redis.Client,
 ) *AuthService {
 	return &AuthService{
 		userRepo:     userRepo,
 		tokenManager: tokenManager,
 		emailRepo:    emailRepo,
 		emailSender:  emailSender,
+		redisClient:  redisClient,
 	}
 }
 
@@ -147,6 +152,23 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.Au
 		ExpiresIn:    int64(time.Until(expiresAt).Seconds()),
 		User:         user,
 	}, nil
+}
+
+func (s *AuthService) Logout(ctx context.Context, refreshToken, accessToken string) error {
+	claims, err := s.tokenManager.ValidateToken(accessToken)
+	if err == nil {
+		ttl := time.Until(claims.ExpiresAt.Time)
+		if ttl > 0 {
+			key := fmt.Sprintf("revoked:%s", accessToken)
+			_ = s.redisClient.Set(ctx, key, "revoked", ttl).Err()
+			log.Printf("tokens blacklisted for userID=%s (accessToken=%s..., refreshToken=%s...)",
+				claims.UserId, accessToken[:10], refreshToken[:10])
+		}
+	} else {
+		return err
+	}
+
+	return nil
 }
 
 func (s *AuthService) generateVerificationToken() (string, error) {

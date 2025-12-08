@@ -32,6 +32,8 @@ func LoadConfig() *Config {
 		DBUser:     getEnv("USER_DB_USER", "user-service"),
 		DBPassword: getEnv("USER_DB_PASSWORD", "user-service"),
 		DBName:     getEnv("USER_DB_NAME", "user-service"),
+		RedisHost:  getEnv("REDIS_HOST", "localhost"),
+		RedisPort:  getEnv("REDIS_PORT", "6379"),
 		SMTPHost:   getEnv("SMTP_HOST", "smtp.gmail.com"),
 		SMTPPort:   getEnvInt("SMTP_PORT", 587),
 		SMTPUser:   getEnv("SMTP_USER", "user-service@gmail.com"),

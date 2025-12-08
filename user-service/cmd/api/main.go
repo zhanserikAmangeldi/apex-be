@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/handler"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/mailer"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/middleware"
@@ -15,6 +16,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/config"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/migration"
@@ -34,6 +36,17 @@ func main() {
 		log.Fatalf("unable to ping database: %v", err)
 	}
 	log.Println("connected to PostgreSQL")
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort),
+		DB:   0,
+	})
+	defer redisClient.Close()
+
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		log.Fatalf("Unable to connect to Redis: %v", err)
+	}
+	log.Println("Connected to Redis")
 
 	log.Println("running migrations")
 	if err := migration.AutoMigrate(cfg.DBUrl); err != nil {
@@ -57,7 +70,7 @@ func main() {
 	userRepo := repository.NewUserRepository(dbPool)
 	tokenManager := jwt.NewTokenManager(cfg.JWTSecret)
 	emailRepo := repository.NewEmailVerificationRepository(dbPool)
-	authService := service.NewAuthService(userRepo, tokenManager, emailRepo, &smtp)
+	authService := service.NewAuthService(userRepo, tokenManager, emailRepo, &smtp, redisClient)
 
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userRepo)
@@ -90,11 +103,12 @@ func main() {
 		{
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
+			auth.POST("/logout", authHandler.Logout)
 		}
 	}
 
 	protected := v1.Group("")
-	protected.Use(middleware.AuthMiddleware(tokenManager))
+	protected.Use(middleware.AuthMiddleware(tokenManager, redisClient))
 	{
 
 		users := protected.Group("/users")

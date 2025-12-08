@@ -76,3 +76,27 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	c.JSON(http.StatusOK, authResp)
 }
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	var req dto.TokensRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Error:   "validation_error",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	err := h.authService.Logout(c.Request.Context(), req.RefreshToken, req.AccessToken)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Error:   "internal_server",
+			Message: "Failed to logout",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Logged out successfully",
+	})
+}

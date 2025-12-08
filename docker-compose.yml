@@ -18,11 +18,28 @@ services:
     networks:
       - chat-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - chat-network
+
   user_service:
     build: ./user-service
     container_name: user_service
     depends_on:
       user-postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     env_file:
       - .env
@@ -33,6 +50,7 @@ services:
 
 volumes:
   user_postgres_data:
+  redis_data:
 
 networks:
   chat-network:

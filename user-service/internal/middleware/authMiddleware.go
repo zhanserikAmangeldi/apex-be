@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"github.com/redis/go-redis/v9"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/pkg/jwt"
 	"net/http"
 	"strings"
@@ -15,7 +16,7 @@ const (
 	emailKey            = "email"
 )
 
-func AuthMiddleware(tokenManager *jwt.TokenManager) gin.HandlerFunc {
+func AuthMiddleware(tokenManager *jwt.TokenManager, redisClient *redis.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader(authorizationHeader)
 		if authHeader == "" {
@@ -32,6 +33,15 @@ func AuthMiddleware(tokenManager *jwt.TokenManager) gin.HandlerFunc {
 		}
 
 		token := parts[1]
+
+		ctx := c.Request.Context()
+
+		exists, err := redisClient.Exists(ctx, "revoked:"+token).Result()
+		if err == nil && exists > 0 {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "token revoked"})
+			c.Abort()
+			return
+		}
 
 		claims, err := tokenManager.ValidateToken(token)
 		if err != nil {
