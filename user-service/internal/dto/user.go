@@ -23,7 +23,6 @@ type AuthResponse struct {
 
 type UpdateUserRequest struct {
 	DisplayName *string `json:"display_name,omitempty" binding:"omitempty,max=100"`
-	AvatarURL   *string `json:"avatar_url,omitempty" binding:"omitempty,url"`
 	Bio         *string `json:"bio,omitempty" binding:"omitempty,max=500"`
 	Status      *string `json:"status,omitempty" binding:"omitempty,oneof=online offline away busy"`
 }

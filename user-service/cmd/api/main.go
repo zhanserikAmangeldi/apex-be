@@ -4,16 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
+	"log"
+	"net/http"
+
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/handler"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/mailer"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/middleware"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/repository"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/service"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/pkg/jwt"
-	"log"
-	"net/http"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -58,7 +57,8 @@ func main() {
 
 	render := mailer.NewTemplateRender("internal/mailer/templates")
 
-	minio := NewMinio(cfg)
+	minioService := service.NewMinioService(cfg)
+	minioHandler := handler.NewMinioHandler(minioService)
 
 	smtp := mailer.SMTPMailer{
 		Host:    cfg.SMTPHost,
@@ -124,8 +124,8 @@ func main() {
 
 		users := protected.Group("/users")
 		{
-			users.POST("/upload-avatar", minio.uploadAvatar)
-			users.GET("/get-avatar", minio.getAvatar)
+			users.POST("/upload-avatar", minioHandler.UploadAvatar)
+			users.GET("/get-avatar", minioHandler.GetAvatar)
 			users.GET("/me", userHandler.GetMe)
 			users.PUT("/me", userHandler.UpdateMe)
 			users.GET("/:id", userHandler.GetUserByID)
@@ -141,118 +141,4 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("failed to start server: %v", err)
 	}
-}
-
-type Minio struct {
-	MinioClient *minio.Client
-}
-
-func NewMinio(cfg *config.Config) *Minio {
-	var err error
-	minioClient, err := minio.New(cfg.MinioHost+":"+cfg.MinioApiPort, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.MinioUser, cfg.MinioPass, ""),
-		Secure: false,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Printf("minio client is ready: %#v\n", minioClient)
-
-	ctx := context.Background()
-	bucketName := "avatars"
-
-	exists, err := minioClient.BucketExists(ctx, bucketName)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if !exists {
-		err := minioClient.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{})
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		log.Printf("minio bucket %s created", bucketName)
-	}
-
-	return &Minio{
-		MinioClient: minioClient,
-	}
-}
-
-func (m *Minio) uploadAvatar(c *gin.Context) {
-	fileHeader, err := c.FormFile("avatar")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	file, err := fileHeader.Open()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to open file"})
-		return
-	}
-	defer file.Close()
-
-	userID := middleware.GetUserID(c)
-	if userID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id is required"})
-		return
-	}
-
-	objectName := fmt.Sprintf("%v/%s", userID, "avatar")
-	contentType := fileHeader.Header.Get("Content-Type")
-
-	_, err = m.MinioClient.PutObject(
-		c.Request.Context(),
-		"avatars",
-		objectName,
-		file,
-		fileHeader.Size,
-		minio.PutObjectOptions{ContentType: contentType},
-	)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Avatar uploaded successfully", "path": objectName})
-}
-
-func (m *Minio) getAvatar(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-
-	objectName := fmt.Sprintf("%v/%s", userID, "avatar")
-
-	object, err := m.MinioClient.GetObject(
-		c.Request.Context(),
-		"avatars",
-		objectName,
-		minio.GetObjectOptions{},
-	)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Image not found"})
-		return
-	}
-
-	defer object.Close()
-
-	info, err := object.Stat()
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Image not found or unreadable"})
-		return
-	}
-
-	extraHeaders := map[string]string{
-		"Content-Disposition": fmt.Sprintf("inline; filename=avatar"),
-	}
-
-	c.DataFromReader(
-		http.StatusOK,
-		info.Size,
-		info.ContentType,
-		object,
-		extraHeaders,
-	)
 }

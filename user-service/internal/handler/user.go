@@ -3,11 +3,12 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/dto"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/middleware"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/repository"
-	"net/http"
 )
 
 type UserHandler struct {
@@ -74,9 +75,6 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 
 	if req.DisplayName != nil {
 		user.DisplayName = req.DisplayName
-	}
-	if req.AvatarURL != nil {
-		user.AvatarURL = req.AvatarURL
 	}
 	if req.Bio != nil {
 		user.Bio = req.Bio
