@@ -57,9 +57,6 @@ func main() {
 
 	render := mailer.NewTemplateRender("internal/mailer/templates")
 
-	minioService := service.NewMinioService(cfg)
-	minioHandler := handler.NewMinioHandler(minioService)
-
 	smtp := mailer.SMTPMailer{
 		Host:    cfg.SMTPHost,
 		Port:    cfg.SMTPPort,
@@ -75,8 +72,10 @@ func main() {
 	emailRepo := repository.NewEmailVerificationRepository(dbPool)
 	sessionRepo := repository.NewSessionRepository(dbPool)
 
+	minioService := service.NewMinioService(cfg)
 	authService := service.NewAuthService(userRepo, tokenManager, sessionRepo, emailRepo, &smtp, redisClient)
 
+	minioHandler := handler.NewMinioHandler(minioService, userRepo)
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userRepo)
 	emailHandler := handler.NewEmailVerificationHandler(authService)
