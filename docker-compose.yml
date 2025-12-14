@@ -1,17 +1,36 @@
 services:
   user-postgres:
     image: postgres:17
-    container_name: user_postgres
+    container_name: user-postgres
     environment:
       POSTGRES_DB: ${USER_DB_NAME}
       POSTGRES_USER: ${USER_DB_USER}
       POSTGRES_PASSWORD: ${USER_DB_PASSWORD}
     ports:
-      - "${USER_DB_PORT_FORWARD}:${USER_DB_PORT}"
+      - "${USER_DB_PORT_FORWARD}:5432"
     volumes:
       - user_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${USER_DB_USER} -d ${USER_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - apex-network
+
+  editor-postgres:
+    image: postgres:17
+    container_name: editor-postgres
+    environment:
+      POSTGRES_DB: ${EDITOR_DB_NAME}
+      POSTGRES_USER: ${EDITOR_DB_USER}
+      POSTGRES_PASSWORD: ${EDITOR_DB_PASSWORD}
+    ports:
+      - "${EDITOR_DB_PORT_FORWARD}:5432"
+    volumes:
+      - editor_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${EDITOR_DB_USER} -d ${EDITOR_DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -44,7 +63,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
     command: server /data --console-address ":9001"
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
       timeout: 20s
       retries: 3
@@ -54,7 +73,7 @@ services:
     networks:
       - apex-network
 
-  user_service:
+  user-service:
     build: ./user-service
     container_name: user_service
     depends_on:
@@ -64,17 +83,114 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-    env_file:
-      - .env
+    environment:
+      - HTTP_PORT=${HTTP_PORT}
+      - DB_HOST=${USER_DB_HOST}
+      - DB_PORT=5432
+      - DB_USER=${USER_DB_USER}
+      - DB_PASSWORD=${USER_DB_PASSWORD}
+      - DB_NAME=${USER_DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ACCESS_DURATION=${JWT_ACCESS_DURATION}
+      - JWT_REFRESH_DURATION=${JWT_REFRESH_DURATION}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - MINIO_HOST=${MINIO_HOST}
+      - MINIO_PORT=${MINIO_API_PORT}
+      - MINIO_USER=${MINIO_USER}
+      - MINIO_PASSWORD=${MINIO_PASSWORD}
+      - MINIO_USE_SSL=${MINIO_USE_SSL}
     ports:
       - "${USER_HTTP_PORT}:${HTTP_PORT}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:${HTTP_PORT}/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - apex-network
+
+  editor-service:
+    build: ./collaborative-editor
+    container_name: editor_service
+    depends_on:
+      editor-postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    environment:
+      - DB_HOST=${EDITOR_DB_HOST}
+      - DB_PORT=5432
+      - DB_NAME=${EDITOR_DB_NAME}
+      - DB_USER=${EDITOR_DB_USER}
+      - DB_PASSWORD=${EDITOR_DB_PASSWORD}
+      - MINIO_ENDPOINT=${MINIO_HOST}
+      - MINIO_PORT=${MINIO_API_PORT}
+      - MINIO_USE_SSL=${MINIO_USE_SSL}
+      - MINIO_ACCESS_KEY=${MINIO_USER}
+      - MINIO_SECRET_KEY=${MINIO_PASSWORD}
+      - MINIO_BUCKET_SNAPSHOTS=${MINIO_BUCKET_SNAPSHOTS}
+      - MINIO_BUCKET_ATTACHMENTS=${MINIO_BUCKET_ATTACHMENTS}
+      - AUTH_SERVICE_URL=http://user-service:${HTTP_PORT}
+      - PORT=${EDITOR_HTTP_PORT}
+      - HOCUSPOCUS_PORT=${EDITOR_WS_PORT}
+      - SNAPSHOT_SIZE_LIMIT_MB=${SNAPSHOT_SIZE_LIMIT_MB}
+      - SNAPSHOT_THRESHOLD_UPDATES=${SNAPSHOT_THRESHOLD_UPDATES}
+      - SNAPSHOT_WORKER_INTERVAL_MS=${SNAPSHOT_WORKER_INTERVAL_MS}
+      - NODE_ENV=development
+    ports:
+      - "${EDITOR_HTTP_PORT_FORWARD}:${EDITOR_HTTP_PORT}"
+      - "${EDITOR_WS_PORT_FORWARD}:${EDITOR_WS_PORT}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:${EDITOR_HTTP_PORT}/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - apex-network
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: api_gateway
+    depends_on:
+      user-service:
+        condition: service_healthy
+      editor-service:
+        condition: service_healthy
+    environment:
+      - PORT=${GATEWAY_PORT}
+      - GIN_MODE=${GIN_MODE}
+      - AUTH_SERVICE_URL=http://user-service:${HTTP_PORT}
+      - EDITOR_SERVICE_URL=http://editor-service:${EDITOR_HTTP_PORT}
+      - EDITOR_WS_URL=ws://editor-service:${EDITOR_WS_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+    ports:
+      - "${GATEWAY_PORT}:${GATEWAY_PORT}"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:${GATEWAY_PORT}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - apex-network
 
 volumes:
   user_postgres_data:
+  editor_postgres_data:
   redis_data:
   minio_data:
+  editor_logs:
 
 networks:
   apex-network:
