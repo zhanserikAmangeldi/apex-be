@@ -7,13 +7,13 @@ import {
     generatePresignedUploadUrl,
     generatePresignedDownloadUrl
 } from './storage/minio.js';
+import vaultRouter from './vaults-api.js'
 
 const app = express();
 
-app.use(cors());
 app.use(express.json());
+app.use('/api', vaultRouter)
 
-// Refresh token endpoint (proxy к auth service)
 app.post('/api/auth/refresh', async (req, res) => {
     const { refresh_token } = req.body;
 
@@ -35,7 +35,6 @@ app.post('/api/auth/refresh', async (req, res) => {
     }
 });
 
-// Logout
 app.post('/api/auth/logout', authenticateToken, async (req, res) => {
     try {
         // Очищаем кэш для этого токена
@@ -48,7 +47,6 @@ app.post('/api/auth/logout', authenticateToken, async (req, res) => {
     }
 });
 
-// List user's documents
 app.get('/api/documents', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(
@@ -68,7 +66,6 @@ app.get('/api/documents', authenticateToken, async (req, res) => {
     }
 });
 
-// Get single document with permissions check
 app.get('/api/documents/:id', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(
@@ -98,7 +95,6 @@ app.get('/api/documents/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// Create new document
 app.post('/api/documents', authenticateToken, async (req, res) => {
     const { title } = req.body;
 
@@ -117,7 +113,6 @@ app.post('/api/documents', authenticateToken, async (req, res) => {
     }
 });
 
-// Update document metadata
 app.patch('/api/documents/:id', authenticateToken, async (req, res) => {
     const { title } = req.body;
 
@@ -142,7 +137,6 @@ app.patch('/api/documents/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// Delete document (soft delete)
 app.delete('/api/documents/:id', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(
@@ -164,7 +158,6 @@ app.delete('/api/documents/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// Share document with user
 app.post('/api/documents/:id/share', authenticateToken, async (req, res) => {
     const { user_id, permission } = req.body; // permission: 'read' | 'write' | 'admin'
 
@@ -203,7 +196,6 @@ app.post('/api/documents/:id/share', authenticateToken, async (req, res) => {
     }
 });
 
-// Get document collaborators
 app.get('/api/documents/:id/collaborators', authenticateToken, async (req, res) => {
     try {
         const accessCheck = await pool.query(
@@ -234,7 +226,6 @@ app.get('/api/documents/:id/collaborators', authenticateToken, async (req, res) 
     }
 });
 
-// Initiate file upload
 app.post('/api/attachments/initiate', authenticateToken, async (req, res) => {
     const { documentId, filename, mimeType, size } = req.body;
 
@@ -289,7 +280,6 @@ app.post('/api/attachments/initiate', authenticateToken, async (req, res) => {
     }
 });
 
-// Get download URL for attachment
 app.get('/api/attachments/:id', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(
@@ -327,7 +317,6 @@ app.get('/api/attachments/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// List document attachments
 app.get('/api/documents/:id/attachments', authenticateToken, async (req, res) => {
     try {
         const accessCheck = await pool.query(
