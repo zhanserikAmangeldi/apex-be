@@ -1,4 +1,7 @@
 services:
+  # ===========================================
+  # DATABASES
+  # ===========================================
   user-postgres:
     image: postgres:17
     container_name: user-postgres
@@ -7,7 +10,7 @@ services:
       POSTGRES_USER: ${USER_DB_USER}
       POSTGRES_PASSWORD: ${USER_DB_PASSWORD}
     ports:
-      - "${USER_DB_PORT_FORWARD}:5432"
+      - "${USER_DB_PORT_FORWARD:-5433}:5432"
     volumes:
       - user_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -26,7 +29,7 @@ services:
       POSTGRES_USER: ${EDITOR_DB_USER}
       POSTGRES_PASSWORD: ${EDITOR_DB_PASSWORD}
     ports:
-      - "${EDITOR_DB_PORT_FORWARD}:5432"
+      - "${EDITOR_DB_PORT_FORWARD:-5434}:5432"
     volumes:
       - editor_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -37,11 +40,15 @@ services:
     networks:
       - apex-network
 
+  # ===========================================
+  # CACHE & MESSAGE BROKER
+  # ===========================================
   redis:
     image: redis:7-alpine
     container_name: redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
-      - "${REDIS_PORT}:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -52,12 +59,15 @@ services:
     networks:
       - apex-network
 
+  # ===========================================
+  # OBJECT STORAGE
+  # ===========================================
   minio:
     image: minio/minio
     container_name: minio
     ports:
-      - "${MINIO_API_PORT}:9000"
-      - "${MINIO_UI_PORT}:9001"
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_UI_PORT:-9001}:9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
@@ -73,9 +83,12 @@ services:
     networks:
       - apex-network
 
+  # ===========================================
+  # APPLICATION SERVICES
+  # ===========================================
   user-service:
     build: ./user-service
-    container_name: user_service
+    container_name: user-service
     depends_on:
       user-postgres:
         condition: service_healthy
@@ -84,31 +97,34 @@ services:
       minio:
         condition: service_healthy
     environment:
-      - HTTP_PORT=${HTTP_PORT}
-      - DB_HOST=${USER_DB_HOST}
+      - HTTP_PORT=${HTTP_PORT:-8080}
+      - ENV=${ENV:-development}
+      - DB_HOST=user-postgres
       - DB_PORT=5432
       - DB_USER=${USER_DB_USER}
       - DB_PASSWORD=${USER_DB_PASSWORD}
       - DB_NAME=${USER_DB_NAME}
+      - DB_MAX_CONNS=${DB_MAX_CONNS:-20}
       - JWT_SECRET=${JWT_SECRET}
-      - JWT_ACCESS_DURATION=${JWT_ACCESS_DURATION}
-      - JWT_REFRESH_DURATION=${JWT_REFRESH_DURATION}
+      - JWT_ACCESS_DURATION=${JWT_ACCESS_DURATION:-15m}
+      - JWT_REFRESH_DURATION=${JWT_REFRESH_DURATION:-168h}
       - SMTP_HOST=${SMTP_HOST}
-      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - SMTP_FROM=${SMTP_FROM}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-      - MINIO_HOST=${MINIO_HOST}
-      - MINIO_PORT=${MINIO_API_PORT}
+      - BASE_URL=${BASE_URL:-http://localhost:8000}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MINIO_HOST=minio
+      - MINIO_PORT=9000
       - MINIO_USER=${MINIO_USER}
       - MINIO_PASSWORD=${MINIO_PASSWORD}
-      - MINIO_USE_SSL=${MINIO_USE_SSL}
+      - MINIO_USE_SSL=false
     ports:
-      - "${USER_HTTP_PORT}:${HTTP_PORT}"
+      - "${USER_HTTP_PORT:-8080}:${HTTP_PORT:-8080}"
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:${HTTP_PORT}/health || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:${HTTP_PORT:-8080}/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -117,8 +133,8 @@ services:
       - apex-network
 
   editor-service:
-    build: ./collaborative-editor
-    container_name: editor_service
+    build: ./editor-service
+    container_name: editor-service
     depends_on:
       editor-postgres:
         condition: service_healthy
@@ -127,30 +143,32 @@ services:
       user-service:
         condition: service_healthy
     environment:
-      - DB_HOST=${EDITOR_DB_HOST}
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=${EDITOR_HTTP_PORT:-3000}
+      - HOCUSPOCUS_PORT=${EDITOR_WS_PORT:-1234}
+      - DB_HOST=editor-postgres
       - DB_PORT=5432
       - DB_NAME=${EDITOR_DB_NAME}
       - DB_USER=${EDITOR_DB_USER}
       - DB_PASSWORD=${EDITOR_DB_PASSWORD}
-      - MINIO_ENDPOINT=${MINIO_HOST}
-      - MINIO_PORT=${MINIO_API_PORT}
-      - MINIO_USE_SSL=${MINIO_USE_SSL}
+      - DB_MAX_CONNECTIONS=${DB_MAX_CONNECTIONS:-20}
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_USE_SSL=false
       - MINIO_ACCESS_KEY=${MINIO_USER}
       - MINIO_SECRET_KEY=${MINIO_PASSWORD}
-      - MINIO_BUCKET_SNAPSHOTS=${MINIO_BUCKET_SNAPSHOTS}
-      - MINIO_BUCKET_ATTACHMENTS=${MINIO_BUCKET_ATTACHMENTS}
-      - AUTH_SERVICE_URL=http://user-service:${HTTP_PORT}
-      - PORT=${EDITOR_HTTP_PORT}
-      - HOCUSPOCUS_PORT=${EDITOR_WS_PORT}
-      - SNAPSHOT_SIZE_LIMIT_MB=${SNAPSHOT_SIZE_LIMIT_MB}
-      - SNAPSHOT_THRESHOLD_UPDATES=${SNAPSHOT_THRESHOLD_UPDATES}
-      - SNAPSHOT_WORKER_INTERVAL_MS=${SNAPSHOT_WORKER_INTERVAL_MS}
-      - NODE_ENV=development
+      - MINIO_BUCKET_SNAPSHOTS=${MINIO_BUCKET_SNAPSHOTS:-crdt-snapshots}
+      - MINIO_BUCKET_ATTACHMENTS=${MINIO_BUCKET_ATTACHMENTS:-attachments}
+      - AUTH_SERVICE_URL=http://user-service:${HTTP_PORT:-8080}
+      - AUTH_TOKEN_CACHE_TTL=${AUTH_TOKEN_CACHE_TTL:-60}
+      - SNAPSHOT_SIZE_LIMIT_MB=${SNAPSHOT_SIZE_LIMIT_MB:-5}
+      - SNAPSHOT_THRESHOLD_UPDATES=${SNAPSHOT_THRESHOLD_UPDATES:-200}
+      - SNAPSHOT_WORKER_INTERVAL_MS=${SNAPSHOT_WORKER_INTERVAL_MS:-30000}
     ports:
-      - "${EDITOR_HTTP_PORT_FORWARD}:${EDITOR_HTTP_PORT}"
-      - "${EDITOR_WS_PORT_FORWARD}:${EDITOR_WS_PORT}"
+      - "${EDITOR_HTTP_PORT_FORWARD:-3000}:${EDITOR_HTTP_PORT:-3000}"
+      - "${EDITOR_WS_PORT_FORWARD:-1234}:${EDITOR_WS_PORT:-1234}"
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:${EDITOR_HTTP_PORT}/health || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:${EDITOR_HTTP_PORT:-3000}/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -160,24 +178,24 @@ services:
 
   api-gateway:
     build: ./api-gateway
-    container_name: api_gateway
+    container_name: api-gateway
     depends_on:
       user-service:
         condition: service_healthy
       editor-service:
         condition: service_healthy
     environment:
-      - PORT=${GATEWAY_PORT}
-      - GIN_MODE=${GIN_MODE}
-      - AUTH_SERVICE_URL=http://user-service:${HTTP_PORT}
-      - EDITOR_SERVICE_URL=http://editor-service:${EDITOR_HTTP_PORT}
-      - EDITOR_WS_URL=ws://editor-service:${EDITOR_WS_PORT}
+      - PORT=${GATEWAY_PORT:-8000}
+      - GIN_MODE=${GIN_MODE:-debug}
+      - AUTH_SERVICE_URL=http://user-service:${HTTP_PORT:-8080}
+      - EDITOR_SERVICE_URL=http://editor-service:${EDITOR_HTTP_PORT:-3000}
+      - EDITOR_WS_URL=ws://editor-service:${EDITOR_WS_PORT:-1234}
       - JWT_SECRET=${JWT_SECRET}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
     ports:
-      - "${GATEWAY_PORT}:${GATEWAY_PORT}"
+      - "${GATEWAY_PORT:-8000}:${GATEWAY_PORT:-8000}"
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:${GATEWAY_PORT}/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:${GATEWAY_PORT:-8000}/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -190,7 +208,6 @@ volumes:
   editor_postgres_data:
   redis_data:
   minio_data:
-  editor_logs:
 
 networks:
   apex-network:
