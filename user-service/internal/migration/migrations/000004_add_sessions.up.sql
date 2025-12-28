@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS sessions (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     refresh_token VARCHAR(500) UNIQUE NOT NULL,
     access_token VARCHAR(500) NOT NULL,
     user_agent VARCHAR(500),

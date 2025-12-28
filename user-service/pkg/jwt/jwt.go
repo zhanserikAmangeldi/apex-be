@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 var (
@@ -13,31 +14,52 @@ var (
 )
 
 type Claims struct {
-	UserId   int64  `json:"user_id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
+	UserID   uuid.UUID `json:"user_id"`
+	Username string    `json:"username"`
+	Email    string    `json:"email"`
 	jwt.RegisteredClaims
 }
 
 type TokenManager struct {
-	secretKey string
+	secretKey       string
+	accessDuration  time.Duration
+	refreshDuration time.Duration
 }
 
-func NewTokenManager(secretKey string) *TokenManager {
-	return &TokenManager{secretKey: secretKey}
+type TokenManagerConfig struct {
+	SecretKey       string
+	AccessDuration  time.Duration
+	RefreshDuration time.Duration
 }
 
-func (tm *TokenManager) GenerateAccessToken(userId int64, username, email string) (string, time.Time, error) {
-	expiresAt := time.Now().Add(time.Minute * 15)
+func NewTokenManager(cfg TokenManagerConfig) *TokenManager {
+	// Defaults
+	if cfg.AccessDuration == 0 {
+		cfg.AccessDuration = 15 * time.Minute
+	}
+	if cfg.RefreshDuration == 0 {
+		cfg.RefreshDuration = 7 * 24 * time.Hour
+	}
+
+	return &TokenManager{
+		secretKey:       cfg.SecretKey,
+		accessDuration:  cfg.AccessDuration,
+		refreshDuration: cfg.RefreshDuration,
+	}
+}
+
+func (tm *TokenManager) GenerateAccessToken(userID uuid.UUID, username, email string) (string, time.Time, error) {
+	expiresAt := time.Now().Add(tm.accessDuration)
 
 	claims := Claims{
-		UserId:   userId,
+		UserID:   userID,
 		Username: username,
 		Email:    email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
+			Subject:   userID.String(),
 		},
 	}
 
@@ -50,16 +72,17 @@ func (tm *TokenManager) GenerateAccessToken(userId int64, username, email string
 	return tokenString, expiresAt, nil
 }
 
-func (tm *TokenManager) GenerateRefreshToken(userID int64, username, email string) (string, time.Time, error) {
-	expiresAt := time.Now().Add(7 * 24 * time.Hour)
+func (tm *TokenManager) GenerateRefreshToken(userID uuid.UUID, username, email string) (string, time.Time, error) {
+	expiresAt := time.Now().Add(tm.refreshDuration)
 
 	claims := Claims{
-		UserId:   userID,
+		UserID:   userID,
 		Username: username,
 		Email:    email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Subject:   userID.String(),
 		},
 	}
 
@@ -93,4 +116,15 @@ func (tm *TokenManager) ValidateToken(tokenString string) (*Claims, error) {
 	}
 
 	return claims, nil
+}
+
+// GenerateTokenPair - генерирует оба токена за один вызов
+func (tm *TokenManager) GenerateTokenPair(userID uuid.UUID, username, email string) (accessToken, refreshToken string, accessExpiresAt, refreshExpiresAt time.Time, err error) {
+	accessToken, accessExpiresAt, err = tm.GenerateAccessToken(userID, username, email)
+	if err != nil {
+		return
+	}
+
+	refreshToken, refreshExpiresAt, err = tm.GenerateRefreshToken(userID, username, email)
+	return
 }

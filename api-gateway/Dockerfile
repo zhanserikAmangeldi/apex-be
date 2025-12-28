@@ -1,19 +1,32 @@
+# Build stage
 FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
+
+RUN apk add --no-cache git ca-certificates
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-RUN go build -o api-gateway ./cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
 
+# Final stage
 FROM alpine:3.19
 
 WORKDIR /app
-COPY --from=builder /app/api-gateway .
 
-EXPOSE 8080
+RUN apk --no-cache add ca-certificates tzdata
 
-CMD ["./api-gateway"]
+COPY --from=builder /app/main .
+
+RUN adduser -D -g '' appuser
+USER appuser
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8000/health || exit 1
+
+CMD ["./main"]
