@@ -4,7 +4,6 @@
 export function errorHandler(err, req, res, next) {
     console.error('❌ Error:', err);
 
-    // Handle specific error types
     if (err.name === 'ValidationError') {
         return res.status(400).json({
             error: 'validation_error',
@@ -34,7 +33,6 @@ export function errorHandler(err, req, res, next) {
         });
     }
 
-    // Database errors
     if (err.code === '23505') {
         return res.status(409).json({
             error: 'conflict',
@@ -49,7 +47,6 @@ export function errorHandler(err, req, res, next) {
         });
     }
 
-    // Default error response
     const statusCode = err.statusCode || err.status || 500;
     const message = statusCode === 500
         ? 'Internal server error'

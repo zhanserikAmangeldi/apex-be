@@ -26,7 +26,7 @@ export class SnapshotRepository {
             try {
                 return await minioService.download(config.minio.buckets.snapshots, path);
             } catch (err) {
-                console.error(`❌ Failed to load snapshot from MinIO for ${documentId}:`, err);
+                console.error(`Failed to load snapshot from MinIO for ${documentId}:`, err);
                 return null;
             }
         } else {
@@ -64,7 +64,6 @@ export class SnapshotRepository {
                     [documentId, 'minio', size]
                 );
 
-                // Remove from PostgreSQL if previously stored there
                 await client.query(
                     'DELETE FROM crdt_snapshots WHERE document_id = $1',
                     [documentId]
@@ -117,7 +116,7 @@ export class SnapshotRepository {
             try {
                 await minioService.delete(config.minio.buckets.snapshots, `${documentId}.bin`);
             } catch (err) {
-                console.error(`❌ Failed to delete snapshot from MinIO: ${err.message}`);
+                console.error(`Failed to delete snapshot from MinIO: ${err.message}`);
             }
         }
 

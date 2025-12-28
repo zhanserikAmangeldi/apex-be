@@ -35,7 +35,6 @@ func NewMinioService(cfg *config.Config) *MinioService {
 
 	log.Printf("MinIO client initialized: %s", endpoint)
 
-	// Initialize buckets
 	ctx := context.Background()
 	if err := initializeBucket(ctx, client, AvatarsBucket); err != nil {
 		log.Fatalf("Failed to initialize bucket %s: %v", AvatarsBucket, err)
@@ -101,7 +100,6 @@ func (s *MinioService) FileExists(ctx context.Context, bucket, objectName string
 	return true, nil
 }
 
-// Client returns the underlying MinIO client for advanced operations
 func (s *MinioService) Client() *minio.Client {
 	return s.client
 }

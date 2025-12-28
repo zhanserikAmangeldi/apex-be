@@ -15,7 +15,6 @@ const (
 	AuthorizationHeader = "Authorization"
 	BearerSchema        = "Bearer"
 
-	// Context keys
 	UserIDKey   = "user_id"
 	UsernameKey = "username"
 	EmailKey    = "email"
@@ -45,7 +44,6 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			return
 		}
 
-		// Check if token is blacklisted
 		ctx := c.Request.Context()
 		key := "revoked:" + token
 		exists, err := m.redisClient.Exists(ctx, key).Result()
@@ -59,7 +57,6 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			return
 		}
 
-		// Validate token
 		claims, err := m.tokenManager.ValidateToken(token)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
@@ -71,7 +68,6 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			return
 		}
 
-		// Set user info in context
 		c.Set(UserIDKey, claims.UserID)
 		c.Set(UsernameKey, claims.Username)
 		c.Set(EmailKey, claims.Email)
@@ -80,7 +76,6 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	}
 }
 
-// OptionalAuth - не прерывает запрос, если токен невалидный
 func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, err := extractBearerToken(c)
@@ -89,7 +84,6 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 			return
 		}
 
-		// Check if token is blacklisted
 		ctx := c.Request.Context()
 		key := "revoked:" + token
 		exists, _ := m.redisClient.Exists(ctx, key).Result()
@@ -126,8 +120,6 @@ func extractBearerToken(c *gin.Context) (string, error) {
 	return parts[1], nil
 }
 
-// Helper functions to extract user info from context
-
 func GetUserID(c *gin.Context) (uuid.UUID, bool) {
 	val, exists := c.Get(UserIDKey)
 	if !exists {
@@ -153,7 +145,6 @@ func GetEmail(c *gin.Context) string {
 	return val.(string)
 }
 
-// MustGetUserID - возвращает UserID или паникует
 func MustGetUserID(c *gin.Context) uuid.UUID {
 	userID, ok := GetUserID(c)
 	if !ok {
@@ -162,7 +153,6 @@ func MustGetUserID(c *gin.Context) uuid.UUID {
 	return userID
 }
 
-// Errors
 var (
 	ErrMissingAuthHeader = &AuthError{Message: "authorization header is required"}
 	ErrInvalidAuthHeader = &AuthError{Message: "invalid authorization header format"}

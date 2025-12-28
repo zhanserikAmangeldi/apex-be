@@ -17,12 +17,10 @@ const (
 	RequestIDKey    = "request_id"
 )
 
-// RequestLogger is a middleware that logs HTTP requests
 func RequestLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 
-		// Generate or get request ID
 		requestID := c.GetHeader(RequestIDHeader)
 		if requestID == "" {
 			requestID = uuid.New().String()
@@ -30,13 +28,11 @@ func RequestLogger() gin.HandlerFunc {
 		c.Set(RequestIDKey, requestID)
 		c.Header(RequestIDHeader, requestID)
 
-		// Get request body for logging (if not too large)
-		if c.Request.Body != nil && c.Request.ContentLength < 10240 { // 10KB limit
+		if c.Request.Body != nil && c.Request.ContentLength < 10240 {
 			bodyBytes, _ := io.ReadAll(c.Request.Body)
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		}
 
-		// Create request-scoped logger
 		reqLogger := logger.Log.With(
 			zap.String("request_id", requestID),
 			zap.String("method", c.Request.Method),
@@ -45,18 +41,14 @@ func RequestLogger() gin.HandlerFunc {
 			zap.String("user_agent", c.Request.UserAgent()),
 		)
 
-		// Log request start
 		reqLogger.Debug("request_started",
 			zap.String("query", c.Request.URL.RawQuery),
 		)
 
-		// Process request
 		c.Next()
 
-		// Calculate duration
 		duration := time.Since(start)
 
-		// Get user ID if available
 		userID := ""
 		if uid, exists := c.Get("user_id"); exists {
 			if id, ok := uid.(string); ok {
@@ -66,7 +58,6 @@ func RequestLogger() gin.HandlerFunc {
 			}
 		}
 
-		// Determine log level based on status code
 		statusCode := c.Writer.Status()
 
 		fields := []zap.Field{
@@ -76,12 +67,10 @@ func RequestLogger() gin.HandlerFunc {
 			zap.String("user_id", userID),
 		}
 
-		// Add errors if any
 		if len(c.Errors) > 0 {
 			fields = append(fields, zap.Strings("errors", c.Errors.Errors()))
 		}
 
-		// Log based on status code
 		switch {
 		case statusCode >= 500:
 			reqLogger.Error("request_completed", fields...)
@@ -95,7 +84,6 @@ func RequestLogger() gin.HandlerFunc {
 	}
 }
 
-// GetRequestID retrieves request ID from context
 func GetRequestID(c *gin.Context) string {
 	if requestID, exists := c.Get(RequestIDKey); exists {
 		return requestID.(string)
@@ -103,7 +91,6 @@ func GetRequestID(c *gin.Context) string {
 	return ""
 }
 
-// GetLogger returns a logger with request context
 func GetLogger(c *gin.Context) *zap.Logger {
 	requestID := GetRequestID(c)
 	userID := ""
@@ -122,7 +109,6 @@ func GetLogger(c *gin.Context) *zap.Logger {
 	)
 }
 
-// Recovery middleware with logging
 func RecoveryWithLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {

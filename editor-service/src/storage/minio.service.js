@@ -24,12 +24,12 @@ class MinioService {
                 const exists = await this.client.bucketExists(bucket);
                 if (!exists) {
                     await this.client.makeBucket(bucket, 'us-east-1');
-                    console.log(`✅ Created MinIO bucket: ${bucket}`);
+                    console.log(`Created MinIO bucket: ${bucket}`);
                 } else {
-                    console.log(`✅ MinIO bucket exists: ${bucket}`);
+                    console.log(`MinIO bucket exists: ${bucket}`);
                 }
             } catch (err) {
-                console.error(`❌ Failed to initialize bucket ${bucket}:`, err);
+                console.error(`Failed to initialize bucket ${bucket}:`, err);
                 throw err;
             }
         }

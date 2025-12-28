@@ -1,9 +1,5 @@
 import { z } from 'zod';
 
-// ===========================================
-// Common Schemas
-// ===========================================
-
 export const uuidSchema = z.string().uuid('Invalid UUID format');
 
 export const paginationSchema = z.object({
@@ -12,10 +8,6 @@ export const paginationSchema = z.object({
     sortBy: z.string().optional(),
     sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });
-
-// ===========================================
-// Document Schemas
-// ===========================================
 
 export const createDocumentSchema = z.object({
     title: z
@@ -56,10 +48,6 @@ export const moveDocumentSchema = z.object({
 export const documentIdParamSchema = z.object({
     id: uuidSchema,
 });
-
-// ===========================================
-// Vault Schemas
-// ===========================================
 
 export const createVaultSchema = z.object({
     name: z
@@ -109,10 +97,6 @@ export const vaultIdParamSchema = z.object({
     id: uuidSchema,
 });
 
-// ===========================================
-// Permission Schemas
-// ===========================================
-
 export const permissionEnum = z.enum(['read', 'write', 'admin']);
 
 export const shareVaultSchema = z.object({
@@ -125,10 +109,6 @@ export const shareDocumentSchema = z.object({
     permission: permissionEnum,
 });
 
-// ===========================================
-// Attachment Schemas
-// ===========================================
-
 export const uploadAttachmentSchema = z.object({
     documentId: uuidSchema,
 });
@@ -136,10 +116,6 @@ export const uploadAttachmentSchema = z.object({
 export const attachmentQuerySchema = z.object({
     documentId: uuidSchema.optional(),
 });
-
-// ===========================================
-// WebSocket / Collaboration Schemas
-// ===========================================
 
 export const wsAuthSchema = z.object({
     token: z.string().min(1, 'Token is required'),

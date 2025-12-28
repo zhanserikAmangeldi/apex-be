@@ -27,10 +27,8 @@ import (
 )
 
 func main() {
-	// Load configuration
 	cfg := config.LoadConfig()
 
-	// Initialize logger
 	logger.MustInit(logger.Config{
 		Level:       cfg.LogLevel,
 		Environment: cfg.Env,
@@ -38,41 +36,34 @@ func main() {
 	})
 	defer logger.Sync()
 
-	// Set Gin mode
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	ctx := context.Background()
 
-	// Initialize PostgreSQL
 	dbPool, err := initDatabase(ctx, cfg)
 	if err != nil {
 		logger.Fatal("Failed to initialize database", zap.Error(err))
 	}
 	defer dbPool.Close()
 
-	// Run migrations
 	logger.Info("Running database migrations...")
 	if err := migration.AutoMigrate(cfg.DBUrl); err != nil {
 		logger.Fatal("Migration failed", zap.Error(err))
 	}
 	logger.Info("Migrations completed successfully")
 
-	// Initialize Redis
 	redisClient, err := initRedis(ctx, cfg)
 	if err != nil {
 		logger.Fatal("Failed to initialize Redis", zap.Error(err))
 	}
 	defer redisClient.Close()
 
-	// Initialize dependencies
 	deps := initDependencies(cfg, dbPool, redisClient)
 
-	// Setup router
 	router := setupRouter(cfg, deps)
 
-	// Create server
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      router,
@@ -81,7 +72,6 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Graceful shutdown
 	go func() {
 		logger.Info("User service starting", zap.String("port", cfg.Port))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -89,7 +79,6 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -152,12 +141,10 @@ type Dependencies struct {
 }
 
 func initDependencies(cfg *config.Config, dbPool *pgxpool.Pool, redisClient *redis.Client) *Dependencies {
-	// Repositories
 	userRepo := repository.NewUserRepository(dbPool)
 	sessionRepo := repository.NewSessionRepository(dbPool)
 	emailRepo := repository.NewEmailVerificationRepository(dbPool)
 
-	// Services
 	tokenManager := jwt.NewTokenManager(jwt.TokenManagerConfig{
 		SecretKey:       cfg.JWTSecret,
 		AccessDuration:  cfg.JWTAccessDuration,
@@ -186,10 +173,8 @@ func initDependencies(cfg *config.Config, dbPool *pgxpool.Pool, redisClient *red
 		redisClient,
 	)
 
-	// Middleware
 	authMiddleware := middleware.NewAuthMiddleware(tokenManager, redisClient)
 
-	// Handlers
 	return &Dependencies{
 		AuthHandler:    handler.NewAuthHandler(authService),
 		UserHandler:    handler.NewUserHandler(userRepo),
@@ -201,11 +186,9 @@ func initDependencies(cfg *config.Config, dbPool *pgxpool.Pool, redisClient *red
 func setupRouter(cfg *config.Config, deps *Dependencies) *gin.Engine {
 	router := gin.New()
 
-	// Use custom logger middleware
 	router.Use(middleware.RequestLogger())
 	router.Use(middleware.RecoveryWithLogger())
 
-	// Health check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":    "healthy",
@@ -214,13 +197,10 @@ func setupRouter(cfg *config.Config, deps *Dependencies) *gin.Engine {
 		})
 	})
 
-	// Email verification (public)
 	router.GET("/verify-email", deps.AuthHandler.VerifyEmail)
 
-	// API v1
 	v1 := router.Group("/api/v1")
 	{
-		// Auth routes (public)
 		auth := v1.Group("/auth")
 		{
 			auth.POST("/register", deps.AuthHandler.Register)
@@ -229,11 +209,9 @@ func setupRouter(cfg *config.Config, deps *Dependencies) *gin.Engine {
 			auth.POST("/refresh", deps.AuthHandler.RefreshToken)
 		}
 
-		// Protected routes
 		protected := v1.Group("")
 		protected.Use(deps.AuthMiddleware.RequireAuth())
 		{
-			// Auth (protected)
 			authProtected := protected.Group("/auth")
 			{
 				authProtected.POST("/logout-all", deps.AuthHandler.LogoutAll)
@@ -241,7 +219,6 @@ func setupRouter(cfg *config.Config, deps *Dependencies) *gin.Engine {
 				authProtected.POST("/resend-verification", deps.AuthHandler.ResendVerificationEmail)
 			}
 
-			// Users
 			users := protected.Group("/users")
 			{
 				users.GET("/me", deps.UserHandler.GetMe)
@@ -249,7 +226,6 @@ func setupRouter(cfg *config.Config, deps *Dependencies) *gin.Engine {
 				users.DELETE("/me", deps.UserHandler.DeleteMe)
 				users.GET("/:id", deps.UserHandler.GetUserByID)
 
-				// Avatar
 				users.POST("/upload-avatar", deps.AvatarHandler.UploadAvatar)
 				users.GET("/avatar", deps.AvatarHandler.GetAvatar)
 				users.DELETE("/avatar", deps.AvatarHandler.DeleteAvatar)

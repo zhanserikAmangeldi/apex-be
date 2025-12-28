@@ -60,13 +60,11 @@ func NewAuthService(
 }
 
 func (s *AuthService) Register(ctx context.Context, req *dto.RegisterRequest, userAgent, ipAddress *string) (*dto.AuthResponse, error) {
-	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Create user
 	user := &models.User{
 		Username:     req.Username,
 		Email:        strings.ToLower(req.Email),
@@ -84,7 +82,6 @@ func (s *AuthService) Register(ctx context.Context, req *dto.RegisterRequest, us
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	// Create email verification token
 	verificationToken, err := s.generateVerificationToken()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate verification token: %w", err)
@@ -100,14 +97,12 @@ func (s *AuthService) Register(ctx context.Context, req *dto.RegisterRequest, us
 		return nil, fmt.Errorf("failed to save verification token: %w", err)
 	}
 
-	// Send verification email (async, don't block registration)
 	go func() {
 		if err := s.emailSender.SendVerificationEmail(user.Email, user.Username, verificationToken); err != nil {
 			log.Printf("Failed to send verification email to %s: %v", user.Email, err)
 		}
 	}()
 
-	// Generate tokens
 	return s.createSession(ctx, user, userAgent, ipAddress)
 }
 
@@ -115,7 +110,6 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest, userAgen
 	var user *models.User
 	var err error
 
-	// Determine if login is email or username
 	login := strings.TrimSpace(req.Login)
 	if strings.Contains(login, "@") {
 		user, err = s.userRepo.GetByEmail(ctx, strings.ToLower(login))
@@ -130,19 +124,16 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest, userAgen
 		return nil, err
 	}
 
-	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		return nil, ErrInvalidCredentials
 	}
 
-	// Update last seen
 	_ = s.userRepo.UpdateLastSeen(ctx, user.ID)
 
 	return s.createSession(ctx, user, userAgent, ipAddress)
 }
 
 func (s *AuthService) Logout(ctx context.Context, refreshToken, accessToken string) error {
-	// Blacklist access token in Redis
 	claims, err := s.tokenManager.ValidateToken(accessToken)
 	if err == nil {
 		ttl := time.Until(claims.ExpiresAt.Time)
@@ -154,12 +145,10 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken, accessToken stri
 		}
 	}
 
-	// Revoke session
 	return s.sessionRepo.Revoke(ctx, refreshToken)
 }
 
 func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string, userAgent, ipAddress *string) (*dto.AuthResponse, error) {
-	// Validate session exists and is active
 	session, err := s.sessionRepo.GetByRefreshToken(ctx, refreshToken)
 	if err != nil {
 		switch {
@@ -174,24 +163,20 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string, use
 		}
 	}
 
-	// Validate refresh token
 	claims, err := s.tokenManager.ValidateToken(refreshToken)
 	if err != nil {
 		return nil, ErrInvalidToken
 	}
 
-	// Get user
 	user, err := s.userRepo.GetByID(ctx, claims.UserID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Revoke old session
 	if err := s.sessionRepo.Revoke(ctx, refreshToken); err != nil {
 		log.Printf("Failed to revoke old session: %v", err)
 	}
 
-	// Blacklist old access token
 	oldAccessClaims, err := s.tokenManager.ValidateToken(session.AccessToken)
 	if err == nil {
 		ttl := time.Until(oldAccessClaims.ExpiresAt.Time)
@@ -201,18 +186,15 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string, use
 		}
 	}
 
-	// Create new session
 	return s.createSession(ctx, user, userAgent, ipAddress)
 }
 
 func (s *AuthService) LogoutAll(ctx context.Context, userID uuid.UUID) error {
-	// Get all active sessions
 	sessions, err := s.sessionRepo.GetAllByUserID(ctx, userID)
 	if err != nil {
 		return err
 	}
 
-	// Blacklist all access tokens
 	for _, sess := range sessions {
 		claims, err := s.tokenManager.ValidateToken(sess.AccessToken)
 		if err == nil {
@@ -274,10 +256,8 @@ func (s *AuthService) ResendVerificationEmail(ctx context.Context, userID uuid.U
 		return errors.New("email already verified")
 	}
 
-	// Delete old verification tokens
 	_ = s.emailRepo.DeleteByUserID(ctx, userID)
 
-	// Create new token
 	token, err := s.generateVerificationToken()
 	if err != nil {
 		return err
@@ -295,8 +275,6 @@ func (s *AuthService) ResendVerificationEmail(ctx context.Context, userID uuid.U
 
 	return s.emailSender.SendVerificationEmail(user.Email, user.Username, token)
 }
-
-// Private helpers
 
 func (s *AuthService) createSession(ctx context.Context, user *models.User, userAgent, ipAddress *string) (*dto.AuthResponse, error) {
 	accessToken, accessExpiresAt, err := s.tokenManager.GenerateAccessToken(user.ID, user.Username, user.Email)

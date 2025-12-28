@@ -64,20 +64,17 @@ func (h *AvatarHandler) UploadAvatar(c *gin.Context) {
 		return
 	}
 
-	// Validate file size
 	if fileHeader.Size > MaxAvatarSize {
 		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("validation_error", "Avatar file is too large (max 5MB)"))
 		return
 	}
 
-	// Validate file type
 	contentType := fileHeader.Header.Get("Content-Type")
 	if !strings.HasPrefix(contentType, AvatarContentType) {
 		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("validation_error", "Invalid file type. Only images are allowed"))
 		return
 	}
 
-	// Validate extension
 	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
 	if !allowedAvatarExtensions[ext] {
 		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("validation_error", "Invalid file extension"))
@@ -91,13 +88,10 @@ func (h *AvatarHandler) UploadAvatar(c *gin.Context) {
 	}
 	defer file.Close()
 
-	// Generate object name: {user_id}/avatar{ext}
 	objectName := fmt.Sprintf("%s/avatar%s", userID.String(), ext)
 
-	// Delete old avatar if exists (different extension)
 	h.deleteOldAvatars(c, userID)
 
-	// Upload to MinIO
 	if err := h.minioService.UploadFile(
 		c.Request.Context(),
 		service.AvatarsBucket,
@@ -110,7 +104,6 @@ func (h *AvatarHandler) UploadAvatar(c *gin.Context) {
 		return
 	}
 
-	// Update user avatar URL
 	if err := h.userRepo.UpdateAvatar(c.Request.Context(), userID, objectName); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse("internal_error", "Failed to update user avatar"))
 		return
@@ -202,13 +195,11 @@ func (h *AvatarHandler) DeleteAvatar(c *gin.Context) {
 		return
 	}
 
-	// Delete from MinIO
 	if err := h.minioService.DeleteFile(c.Request.Context(), service.AvatarsBucket, avatarPath); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse("internal_error", "Failed to delete avatar"))
 		return
 	}
 
-	// Update user record
 	if err := h.userRepo.UpdateAvatar(c.Request.Context(), userID, ""); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse("internal_error", ""))
 		return

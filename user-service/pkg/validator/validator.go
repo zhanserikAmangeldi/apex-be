@@ -7,7 +7,6 @@ import (
 	"unicode"
 )
 
-// ValidationError represents a validation error
 type ValidationError struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
@@ -17,7 +16,6 @@ func (e ValidationError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Field, e.Message)
 }
 
-// ValidationErrors is a collection of validation errors
 type ValidationErrors []ValidationError
 
 func (e ValidationErrors) Error() string {
@@ -32,7 +30,6 @@ func (e ValidationErrors) HasErrors() bool {
 	return len(e) > 0
 }
 
-// Validator provides validation methods
 type Validator struct {
 	errors ValidationErrors
 }
@@ -57,8 +54,6 @@ func (v *Validator) HasErrors() bool {
 func (v *Validator) Errors() ValidationErrors {
 	return v.errors
 }
-
-// String validation
 
 func (v *Validator) Required(field, value string) *Validator {
 	if strings.TrimSpace(value) == "" {
@@ -85,7 +80,6 @@ func (v *Validator) Length(field, value string, min, max int) *Validator {
 	return v.MinLength(field, value, min).MaxLength(field, value, max)
 }
 
-// Email validation
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 
 func (v *Validator) Email(field, value string) *Validator {
@@ -95,7 +89,6 @@ func (v *Validator) Email(field, value string) *Validator {
 	return v
 }
 
-// Username validation
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 func (v *Validator) Username(field, value string) *Validator {
@@ -105,7 +98,6 @@ func (v *Validator) Username(field, value string) *Validator {
 	return v
 }
 
-// Password validation
 func (v *Validator) Password(field, value string) *Validator {
 	if len(value) < 8 {
 		v.AddError(field, "must be at least 8 characters")
@@ -137,7 +129,6 @@ func (v *Validator) Password(field, value string) *Validator {
 	return v
 }
 
-// UUID validation
 var uuidRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 func (v *Validator) UUID(field, value string) *Validator {
@@ -147,7 +138,6 @@ func (v *Validator) UUID(field, value string) *Validator {
 	return v
 }
 
-// URL validation
 var urlRegex = regexp.MustCompile(`^https?://[^\s/$.?#].[^\s]*$`)
 
 func (v *Validator) URL(field, value string) *Validator {
@@ -157,7 +147,6 @@ func (v *Validator) URL(field, value string) *Validator {
 	return v
 }
 
-// Hex color validation
 var hexColorRegex = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
 
 func (v *Validator) HexColor(field, value string) *Validator {
@@ -167,7 +156,6 @@ func (v *Validator) HexColor(field, value string) *Validator {
 	return v
 }
 
-// OneOf validates that value is one of the allowed values
 func (v *Validator) OneOf(field, value string, allowed []string) *Validator {
 	for _, a := range allowed {
 		if value == a {
@@ -178,9 +166,6 @@ func (v *Validator) OneOf(field, value string, allowed []string) *Validator {
 	return v
 }
 
-// ===== Request Validators =====
-
-// ValidateRegisterRequest validates register request
 func ValidateRegisterRequest(username, email, password, displayName string) ValidationErrors {
 	v := New()
 
@@ -203,7 +188,6 @@ func ValidateRegisterRequest(username, email, password, displayName string) Vali
 	return v.Errors()
 }
 
-// ValidateLoginRequest validates login request
 func ValidateLoginRequest(login, password string) ValidationErrors {
 	v := New()
 
@@ -213,7 +197,6 @@ func ValidateLoginRequest(login, password string) ValidationErrors {
 	return v.Errors()
 }
 
-// ValidateUpdateUserRequest validates update user request
 func ValidateUpdateUserRequest(displayName, bio, status string) ValidationErrors {
 	v := New()
 

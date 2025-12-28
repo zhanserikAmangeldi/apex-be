@@ -3,13 +3,11 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const config = {
-    // Server
     port: parseInt(process.env.PORT || '3000'),
     hocuspocusPort: parseInt(process.env.HOCUSPOCUS_PORT || '1234'),
     nodeEnv: process.env.NODE_ENV || 'development',
     logLevel: process.env.LOG_LEVEL || 'info',
 
-    // Database
     db: {
         host: process.env.DB_HOST || 'localhost',
         port: parseInt(process.env.DB_PORT || '5432'),
@@ -20,7 +18,6 @@ export const config = {
         idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT || '30000'),
     },
 
-    // MinIO
     minio: {
         endpoint: process.env.MINIO_ENDPOINT || 'localhost',
         port: parseInt(process.env.MINIO_PORT || '9000'),
@@ -33,20 +30,17 @@ export const config = {
         },
     },
 
-    // Auth Service
     auth: {
         serviceUrl: process.env.AUTH_SERVICE_URL || 'http://localhost:8080',
         tokenCacheTTL: parseInt(process.env.AUTH_TOKEN_CACHE_TTL || '60'),
     },
 
-    // Snapshot Worker
     snapshot: {
         threshold: parseInt(process.env.SNAPSHOT_THRESHOLD_UPDATES || '200'),
         workerInterval: parseInt(process.env.SNAPSHOT_WORKER_INTERVAL_MS || '30000'),
         sizeLimitMB: parseInt(process.env.SNAPSHOT_SIZE_LIMIT_MB || '5'),
     },
 
-    // Hocuspocus
     hocuspocus: {
         timeout: parseInt(process.env.HOCUSPOCUS_TIMEOUT || '30000'),
         debounce: parseInt(process.env.HOCUSPOCUS_DEBOUNCE || '2000'),

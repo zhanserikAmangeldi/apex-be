@@ -1,6 +1,5 @@
 import { config } from '../config/index.js';
 import { crdtService } from '../services/crdt.service.js';
-import { updatesRepository } from '../db/repositories/index.js';
 import pool from '../db/pool/index.js';
 
 class SnapshotWorker {
@@ -14,17 +13,15 @@ class SnapshotWorker {
      */
     start() {
         if (this.isRunning) {
-            console.log('⚠️ Snapshot worker already running');
+            console.log('Snapshot worker already running');
             return;
         }
 
         this.isRunning = true;
-        console.log(`🔄 Snapshot worker started (interval: ${config.snapshot.workerInterval}ms)`);
+        console.log(`Snapshot worker started (interval: ${config.snapshot.workerInterval}ms)`);
 
-        // Run immediately on start
         this.processSnapshots();
 
-        // Then run on interval
         this.intervalId = setInterval(() => {
             this.processSnapshots();
         }, config.snapshot.workerInterval);
@@ -45,7 +42,7 @@ class SnapshotWorker {
             this.intervalId = null;
         }
 
-        console.log('🛑 Snapshot worker stopped');
+        console.log('Snapshot worker stopped');
     }
 
     /**
@@ -53,24 +50,23 @@ class SnapshotWorker {
      */
     async processSnapshots() {
         try {
-            // Find documents with updates exceeding threshold
             const documentsNeedingSnapshot = await this.findDocumentsNeedingSnapshot();
 
             if (documentsNeedingSnapshot.length === 0) {
                 return;
             }
 
-            console.log(`📸 Processing ${documentsNeedingSnapshot.length} documents for snapshot`);
+            console.log(`Processing ${documentsNeedingSnapshot.length} documents for snapshot`);
 
             for (const doc of documentsNeedingSnapshot) {
                 try {
                     await crdtService.createSnapshot(doc.document_id);
                 } catch (err) {
-                    console.error(`❌ Failed to create snapshot for ${doc.document_id}:`, err);
+                    console.error(`Failed to create snapshot for ${doc.document_id}:`, err);
                 }
             }
         } catch (err) {
-            console.error('❌ Snapshot worker error:', err);
+            console.error('Snapshot worker error:', err);
         }
     }
 
@@ -95,7 +91,6 @@ class SnapshotWorker {
      */
     async cleanupExpiredData() {
         try {
-            // Delete very old updates (safety measure)
             const oldUpdatesResult = await pool.query(`
                 DELETE FROM crdt_updates
                 WHERE created_at < NOW() - INTERVAL '30 days'
@@ -107,10 +102,9 @@ class SnapshotWorker {
             `);
 
             if (oldUpdatesResult.rowCount > 0) {
-                console.log(`🗑️ Cleaned up ${oldUpdatesResult.rowCount} old updates`);
+                console.log(`Cleaned up ${oldUpdatesResult.rowCount} old updates`);
             }
 
-            // Delete updates for deleted documents
             const deletedDocsResult = await pool.query(`
                 DELETE FROM crdt_updates
                 WHERE document_id IN (
@@ -119,10 +113,10 @@ class SnapshotWorker {
             `);
 
             if (deletedDocsResult.rowCount > 0) {
-                console.log(`🗑️ Cleaned up ${deletedDocsResult.rowCount} updates for deleted documents`);
+                console.log(`Cleaned up ${deletedDocsResult.rowCount} updates for deleted documents`);
             }
         } catch (err) {
-            console.error('❌ Cleanup error:', err);
+            console.error('Cleanup error:', err);
         }
     }
 

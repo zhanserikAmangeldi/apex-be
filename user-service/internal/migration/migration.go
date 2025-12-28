@@ -90,7 +90,6 @@ func (m *Migrator) createMigrator() (*migrate.Migrate, error) {
 	return migrator, nil
 }
 
-// AutoMigrate - запускает миграции автоматически
 func AutoMigrate(dbURL string) error {
 	m := NewMigrator(dbURL, "/app/internal/migration/migrations")
 	return m.Up()

@@ -69,7 +69,7 @@ func LoadConfig() *Config {
 		RedisDB:   getEnvInt("REDIS_DB", 0),
 
 		// JWT
-		JWTSecret:          getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
+		JWTSecret:          getEnv("JWT_SECRET", "secret-kay"),
 		JWTAccessDuration:  getEnvDuration("JWT_ACCESS_DURATION", 15*time.Minute),
 		JWTRefreshDuration: getEnvDuration("JWT_REFRESH_DURATION", 7*24*time.Hour),
 

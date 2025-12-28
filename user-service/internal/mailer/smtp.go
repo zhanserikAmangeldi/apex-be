@@ -69,7 +69,6 @@ func (m *SMTPMailer) SendVerificationEmail(to, username, token string) error {
 
 	body, err := m.Render.Render("verification", data)
 	if err != nil {
-		// Fallback to plain text if template fails
 		body = fmt.Sprintf(`
 Hello %s,
 

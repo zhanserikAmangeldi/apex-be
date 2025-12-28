@@ -1,11 +1,9 @@
 import pino from 'pino';
 import { config, isDevelopment } from '../config/index.js';
 
-// Create base logger
 const baseLogger = pino({
     level: config.logLevel || (isDevelopment() ? 'debug' : 'info'),
-    
-    // Pretty print in development
+
     transport: isDevelopment() 
         ? {
             target: 'pino-pretty',
@@ -17,16 +15,13 @@ const baseLogger = pino({
         }
         : undefined,
 
-    // Base context
     base: {
         service: 'editor-service',
         env: config.nodeEnv,
     },
 
-    // Timestamp format
     timestamp: pino.stdTimeFunctions.isoTime,
 
-    // Custom serializers
     serializers: {
         err: pino.stdSerializers.err,
         error: pino.stdSerializers.err,
@@ -49,7 +44,6 @@ const baseLogger = pino({
         }),
     },
 
-    // Redact sensitive data
     redact: {
         paths: [
             'req.headers.authorization',
@@ -64,31 +58,26 @@ const baseLogger = pino({
     },
 });
 
-// Create child loggers for different modules
 export const logger = baseLogger;
 
 export function createLogger(module) {
     return baseLogger.child({ module });
 }
 
-// Pre-configured module loggers
 export const dbLogger = createLogger('database');
 export const authLogger = createLogger('auth');
 export const wsLogger = createLogger('websocket');
 export const apiLogger = createLogger('api');
 export const workerLogger = createLogger('worker');
 
-// HTTP request logging middleware
 export function httpLogger() {
     return (req, res, next) => {
         const startTime = Date.now();
         const requestId = req.headers['x-request-id'] || generateRequestId();
-        
-        // Attach request ID
+
         req.requestId = requestId;
         res.setHeader('X-Request-ID', requestId);
 
-        // Log request start
         apiLogger.info({
             type: 'request_start',
             requestId,
@@ -99,7 +88,6 @@ export function httpLogger() {
             ip: req.ip,
         });
 
-        // Log response on finish
         res.on('finish', () => {
             const duration = Date.now() - startTime;
             const logLevel = res.statusCode >= 500 ? 'error' 
@@ -121,7 +109,6 @@ export function httpLogger() {
     };
 }
 
-// Error logging helper
 export function logError(error, context = {}) {
     logger.error({
         type: 'error',
@@ -135,7 +122,6 @@ export function logError(error, context = {}) {
     });
 }
 
-// Audit logging for sensitive operations
 export function logAudit(action, userId, details = {}) {
     logger.info({
         type: 'audit',
@@ -146,7 +132,6 @@ export function logAudit(action, userId, details = {}) {
     });
 }
 
-// Performance logging
 export function logPerformance(operation, duration, details = {}) {
     const level = duration > 1000 ? 'warn' : 'debug';
     logger[level]({
@@ -158,7 +143,6 @@ export function logPerformance(operation, duration, details = {}) {
     });
 }
 
-// WebSocket connection logging
 export function logWsConnection(event, documentId, userId, details = {}) {
     wsLogger.info({
         type: `ws_${event}`,

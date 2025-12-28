@@ -56,7 +56,6 @@ export function optionalAuth(req, res, next) {
             next();
         })
         .catch(() => {
-            // Continue without user
             next();
         });
 }

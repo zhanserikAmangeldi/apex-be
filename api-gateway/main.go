@@ -31,7 +31,6 @@ var (
 
 var jwtSecret []byte
 
-// Per-IP rate limiting
 type IPRateLimiter struct {
 	limiters map[string]*rate.Limiter
 	mu       sync.RWMutex
@@ -60,11 +59,9 @@ func (i *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
 	return limiter
 }
 
-// Cleanup old limiters periodically
 func (i *IPRateLimiter) Cleanup() {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	// Simple cleanup - in production use LRU cache
 	if len(i.limiters) > 10000 {
 		i.limiters = make(map[string]*rate.Limiter)
 	}
@@ -72,12 +69,10 @@ func (i *IPRateLimiter) Cleanup() {
 
 var ipLimiter = NewIPRateLimiter(rate.Limit(50), 100) // 50 req/s per IP, burst 100
 
-// WebSocket upgrader
 var wsUpgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		// In production, validate origin against ALLOWED_ORIGINS
 		allowedOrigins := strings.Split(getEnv("ALLOWED_ORIGINS", "*"), ",")
 		origin := r.Header.Get("Origin")
 
@@ -117,12 +112,10 @@ func main() {
 
 	r := gin.New()
 
-	// Middlewares
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 	r.Use(rateLimitMiddleware())
 
-	// CORS - single point of configuration
 	allowedOrigins := strings.Split(getEnv("ALLOWED_ORIGINS", "*"), ",")
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     allowedOrigins,
@@ -133,22 +126,18 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// Health endpoints
 	r.GET("/health", healthCheck)
 	r.GET("/readiness", readinessCheck)
 
-	// WebSocket endpoint for Hocuspocus (collaborative editing)
 	r.GET("/ws/document/:documentId", handleWebSocket)
 
 	api := r.Group("/api")
 	{
-		// Auth service - public endpoints (login/register)
 		auth := api.Group("/auth-service")
 		{
 			auth.Any("/*path", proxyRequest(authServiceURL, 5*time.Second))
 		}
 
-		// Editor service - requires authentication
 		editor := api.Group("/editor-service")
 		editor.Use(authMiddleware())
 		{
@@ -156,7 +145,6 @@ func main() {
 		}
 	}
 
-	// Cleanup rate limiters periodically
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
 		for range ticker.C {
@@ -165,7 +153,7 @@ func main() {
 	}()
 
 	port := getEnv("PORT", "8000")
-	log.Printf("🚀 API Gateway starting on port %s", port)
+	log.Printf("   API Gateway starting on port %s", port)
 	log.Printf("   Auth Service: %s", authServiceURL)
 	log.Printf("   Editor Service: %s", editorServiceURL)
 	log.Printf("   Editor WebSocket: %s", editorWSURL)
@@ -226,7 +214,6 @@ func authMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Set user info in context
 		c.Set("user_id", claims.UserID)
 		c.Set("user_email", claims.Email)
 		c.Set("user_username", claims.Username)
@@ -264,7 +251,6 @@ func validateToken(tokenString string) (*TokenClaims, error) {
 
 	result := &TokenClaims{}
 
-	// Handle user_id (can be string UUID or numeric)
 	if uid, ok := claims["user_id"]; ok {
 		switch v := uid.(type) {
 		case float64:
@@ -290,7 +276,6 @@ func validateToken(tokenString string) (*TokenClaims, error) {
 	return result, nil
 }
 
-// handleWebSocket proxies WebSocket connections to Hocuspocus server
 func handleWebSocket(c *gin.Context) {
 	documentId := c.Param("documentId")
 	if documentId == "" {
@@ -298,10 +283,8 @@ func handleWebSocket(c *gin.Context) {
 		return
 	}
 
-	// Get token from query parameter (WebSocket can't use headers easily)
 	token := c.Query("token")
 	if token == "" {
-		// Also check Authorization header
 		authHeader := c.GetHeader("Authorization")
 		if strings.HasPrefix(authHeader, "Bearer ") {
 			token = strings.TrimPrefix(authHeader, "Bearer ")
@@ -316,7 +299,6 @@ func handleWebSocket(c *gin.Context) {
 		return
 	}
 
-	// Validate token
 	claims, err := validateToken(token)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -326,7 +308,6 @@ func handleWebSocket(c *gin.Context) {
 		return
 	}
 
-	// Parse backend WebSocket URL
 	backendURL, err := url.Parse(editorWSURL)
 	if err != nil {
 		log.Printf("Failed to parse WebSocket URL: %v", err)
@@ -334,7 +315,6 @@ func handleWebSocket(c *gin.Context) {
 		return
 	}
 
-	// Upgrade client connection
 	clientConn, err := wsUpgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Printf("WebSocket upgrade failed: %v", err)
@@ -342,11 +322,8 @@ func handleWebSocket(c *gin.Context) {
 	}
 	defer clientConn.Close()
 
-	// Connect to backend Hocuspocus server
-	// Hocuspocus expects the document name in the URL path
 	backendWSURL := fmt.Sprintf("%s://%s/%s", backendURL.Scheme, backendURL.Host, documentId)
 
-	// Create headers for backend connection
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer "+token)
 	headers.Set("X-User-ID", claims.UserID)
@@ -365,10 +342,8 @@ func handleWebSocket(c *gin.Context) {
 
 	log.Printf("WebSocket proxy established: user=%s, document=%s", claims.UserID, documentId)
 
-	// Bidirectional proxy
 	errChan := make(chan error, 2)
 
-	// Client -> Backend
 	go func() {
 		for {
 			messageType, message, err := clientConn.ReadMessage()
@@ -383,7 +358,6 @@ func handleWebSocket(c *gin.Context) {
 		}
 	}()
 
-	// Backend -> Client
 	go func() {
 		for {
 			messageType, message, err := backendConn.ReadMessage()
@@ -398,7 +372,6 @@ func handleWebSocket(c *gin.Context) {
 		}
 	}()
 
-	// Wait for either direction to fail
 	<-errChan
 	log.Printf("WebSocket proxy closed: user=%s, document=%s", claims.UserID, documentId)
 }
@@ -429,7 +402,6 @@ func proxyRequest(targetURL string, timeout time.Duration) gin.HandlerFunc {
 
 				req.URL.Path = targetPath
 
-				// Forward user info from JWT
 				if userID, exists := c.Get("user_id"); exists {
 					req.Header.Set("X-User-ID", userID.(string))
 				}
@@ -440,12 +412,10 @@ func proxyRequest(targetURL string, timeout time.Duration) gin.HandlerFunc {
 					req.Header.Set("X-User-Username", username.(string))
 				}
 
-				// Standard proxy headers
 				req.Header.Set("X-Forwarded-By", "API-Gateway")
 				req.Header.Set("X-Forwarded-For", c.ClientIP())
 				req.Header.Set("X-Real-IP", c.ClientIP())
 
-				// Request tracking
 				requestID := generateRequestID(c)
 				req.Header.Set("X-Request-ID", requestID)
 
@@ -455,14 +425,12 @@ func proxyRequest(targetURL string, timeout time.Duration) gin.HandlerFunc {
 				}
 			},
 			ModifyResponse: func(resp *http.Response) error {
-				// Add gateway headers to response
 				resp.Header.Set("X-Served-By", "API-Gateway")
 				return nil
 			},
 			ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {
 				log.Printf("Proxy error for %s: %v", target.Host, err)
 
-				// Don't write if headers already sent
 				if rw.Header().Get("Content-Type") == "" {
 					rw.Header().Set("Content-Type", "application/json")
 					rw.WriteHeader(http.StatusBadGateway)

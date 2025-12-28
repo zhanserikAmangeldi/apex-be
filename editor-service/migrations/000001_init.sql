@@ -1,7 +1,5 @@
--- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Vaults table
 CREATE TABLE IF NOT EXISTS vaults (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     owner_id UUID NOT NULL,
@@ -15,9 +13,6 @@ CREATE TABLE IF NOT EXISTS vaults (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_vaults_owner_id ON vaults(owner_id) WHERE is_deleted = false;
-
--- Documents table
 CREATE TABLE IF NOT EXISTS documents (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     owner_id UUID NOT NULL,
@@ -38,7 +33,6 @@ CREATE INDEX idx_documents_owner_id ON documents(owner_id) WHERE is_deleted = fa
 CREATE INDEX idx_documents_vault_id ON documents(vault_id) WHERE is_deleted = false;
 CREATE INDEX idx_documents_parent_id ON documents(parent_id) WHERE is_deleted = false;
 
--- CRDT Snapshots (for documents < 5MB)
 CREATE TABLE IF NOT EXISTS crdt_snapshots (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     document_id UUID NOT NULL UNIQUE REFERENCES documents(id) ON DELETE CASCADE,
@@ -49,7 +43,6 @@ CREATE TABLE IF NOT EXISTS crdt_snapshots (
 
 CREATE INDEX idx_crdt_snapshots_document_id ON crdt_snapshots(document_id);
 
--- CRDT Updates (incremental changes)
 CREATE TABLE IF NOT EXISTS crdt_updates (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
@@ -61,7 +54,6 @@ CREATE INDEX idx_crdt_updates_document_id ON crdt_updates(document_id);
 CREATE INDEX idx_crdt_updates_created_at ON crdt_updates(created_at);
 CREATE INDEX idx_crdt_updates_document_created ON crdt_updates(document_id, created_at);
 
--- Vault permissions
 CREATE TABLE IF NOT EXISTS vault_permissions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     vault_id UUID NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
@@ -74,7 +66,6 @@ CREATE TABLE IF NOT EXISTS vault_permissions (
 CREATE INDEX idx_vault_permissions_vault_id ON vault_permissions(vault_id);
 CREATE INDEX idx_vault_permissions_user_id ON vault_permissions(user_id);
 
--- Document permissions
 CREATE TABLE IF NOT EXISTS document_permissions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
@@ -84,10 +75,6 @@ CREATE TABLE IF NOT EXISTS document_permissions (
     UNIQUE(document_id, user_id)
 );
 
-CREATE INDEX idx_document_permissions_document_id ON document_permissions(document_id);
-CREATE INDEX idx_document_permissions_user_id ON document_permissions(user_id);
-
--- Attachments
 CREATE TABLE IF NOT EXISTS attachments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
@@ -99,9 +86,6 @@ CREATE TABLE IF NOT EXISTS attachments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_attachments_document_id ON attachments(document_id);
-
--- Update timestamp trigger
 CREATE OR REPLACE FUNCTION update_updated_at_column()
     RETURNS TRIGGER AS $$
 BEGIN

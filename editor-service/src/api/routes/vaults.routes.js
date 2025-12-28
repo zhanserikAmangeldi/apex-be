@@ -217,7 +217,6 @@ router.post('/:id/share',
             const { id } = req.params;
             const { userId, permission } = req.body;
 
-            // Check if current user is owner
             const vault = await vaultRepository.getByIdWithPermission(id, req.user.userId);
             if (!vault || vault.user_permission !== 'owner') {
                 throw new ForbiddenError('Only vault owner can share');
@@ -250,7 +249,6 @@ router.delete('/:id/share/:userId',
         try {
             const { id, userId } = req.params;
 
-            // Check if current user is owner
             const vault = await vaultRepository.getByIdWithPermission(id, req.user.userId);
             if (!vault || vault.user_permission !== 'owner') {
                 throw new ForbiddenError('Only vault owner can modify sharing');

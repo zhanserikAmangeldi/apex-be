@@ -33,7 +33,6 @@ type TokenManagerConfig struct {
 }
 
 func NewTokenManager(cfg TokenManagerConfig) *TokenManager {
-	// Defaults
 	if cfg.AccessDuration == 0 {
 		cfg.AccessDuration = 15 * time.Minute
 	}
@@ -118,7 +117,6 @@ func (tm *TokenManager) ValidateToken(tokenString string) (*Claims, error) {
 	return claims, nil
 }
 
-// GenerateTokenPair - генерирует оба токена за один вызов
 func (tm *TokenManager) GenerateTokenPair(userID uuid.UUID, username, email string) (accessToken, refreshToken string, accessExpiresAt, refreshExpiresAt time.Time, err error) {
 	accessToken, accessExpiresAt, err = tm.GenerateAccessToken(userID, username, email)
 	if err != nil {

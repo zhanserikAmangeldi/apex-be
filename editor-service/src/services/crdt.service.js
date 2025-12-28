@@ -27,7 +27,7 @@ class CRDTService {
         const snapshot = await snapshotRepository.load(documentId);
         const updates = await updatesRepository.loadSince(documentId, snapshotTime);
 
-        console.log(`📦 Loaded: snapshot=${!!snapshot}, updates=${updates.length}`);
+        console.log(`Loaded: snapshot=${!!snapshot}, updates=${updates.length}`);
 
         return this.mergeUpdates(snapshot, updates);
     }
@@ -43,14 +43,14 @@ class CRDTService {
      * Create snapshot for document
      */
     async createSnapshot(documentId) {
-        console.log(`📸 Creating snapshot for document: ${documentId}`);
+        console.log(`Creating snapshot for document: ${documentId}`);
 
         try {
             const currentSnapshot = await snapshotRepository.load(documentId);
             const updates = await updatesRepository.loadAll(documentId);
 
             if (updates.length === 0 && !currentSnapshot) {
-                console.log(`⭐️ No updates for ${documentId}, skipping snapshot`);
+                console.log(`No updates for ${documentId}, skipping snapshot`);
                 return null;
             }
 
@@ -70,7 +70,7 @@ class CRDTService {
                 Buffer.from(newSnapshot)
             );
 
-            console.log(`✅ Snapshot created: ${documentId} (${size} bytes, storage: ${storage})`);
+            console.log(`Snapshot created: ${documentId} (${size} bytes, storage: ${storage})`);
 
             // Delete old updates
             const deletedCount = await updatesRepository.deleteOldUpdates(documentId, new Date());
@@ -78,7 +78,7 @@ class CRDTService {
 
             return { storage, size, deletedUpdates: deletedCount };
         } catch (err) {
-            console.error(`❌ Failed to create snapshot for ${documentId}:`, err);
+            console.error(`Failed to create snapshot for ${documentId}:`, err);
             throw err;
         }
     }

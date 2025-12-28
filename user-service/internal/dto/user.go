@@ -5,8 +5,6 @@ import (
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/models"
 )
 
-// ============== Auth DTOs ==============
-
 type RegisterRequest struct {
 	Username    string `json:"username" binding:"required,min=3,max=50"`
 	Email       string `json:"email" binding:"required,email"`
@@ -22,7 +20,7 @@ type LoginRequest struct {
 type AuthResponse struct {
 	AccessToken  string       `json:"access_token"`
 	RefreshToken string       `json:"refresh_token"`
-	ExpiresIn    int64        `json:"expires_in"` // seconds until access token expires
+	ExpiresIn    int64        `json:"expires_in"`
 	User         *models.User `json:"user"`
 }
 
@@ -34,8 +32,6 @@ type LogoutRequest struct {
 	AccessToken  string `json:"access_token" binding:"required"`
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
-
-// ============== User DTOs ==============
 
 type UpdateUserRequest struct {
 	DisplayName *string `json:"display_name,omitempty" binding:"omitempty,max=100"`
@@ -53,8 +49,6 @@ type UserResponse struct {
 	Status      string    `json:"status"`
 	IsVerified  bool      `json:"is_verified"`
 }
-
-// ============== Error DTOs ==============
 
 type ErrorResponse struct {
 	Error   string `json:"error"`
@@ -76,8 +70,6 @@ func NewErrorResponseWithCode(err, message, code string) ErrorResponse {
 		Code:    code,
 	}
 }
-
-// ============== Common DTOs ==============
 
 type SuccessResponse struct {
 	Message string `json:"message"`

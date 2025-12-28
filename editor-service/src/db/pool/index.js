@@ -15,12 +15,12 @@ export const pool = new Pool({
 });
 
 pool.on('error', (err) => {
-    console.error('❌ Unexpected database pool error:', err);
+    console.error('Unexpected database pool error:', err);
     process.exit(-1);
 });
 
 pool.on('connect', () => {
-    console.log('📦 New database connection established');
+    console.log('New database connection established');
 });
 
 /**
@@ -29,10 +29,10 @@ pool.on('connect', () => {
 export async function testConnection() {
     try {
         const result = await pool.query('SELECT NOW()');
-        console.log('✅ Database connected:', result.rows[0].now);
+        console.log('Database connected:', result.rows[0].now);
         return true;
     } catch (err) {
-        console.error('❌ Database connection error:', err);
+        console.error('Database connection error:', err);
         return false;
     }
 }
@@ -47,12 +47,12 @@ export async function query(text, params) {
         const duration = Date.now() - start;
 
         if (duration > 1000) {
-            console.warn(`⚠️ Slow query (${duration}ms):`, text.substring(0, 100));
+            console.warn(`Slow query (${duration}ms):`, text.substring(0, 100));
         }
 
         return result;
     } catch (err) {
-        console.error('❌ Query error:', err.message);
+        console.error('Query error:', err.message);
         throw err;
     }
 }

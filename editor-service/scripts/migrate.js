@@ -15,9 +15,8 @@ async function runMigrations() {
     });
 
     try {
-        console.log('🔄 Running migrations...');
+        console.log('Running migrations...');
 
-        // Create migrations tracking table
         await pool.query(`
             CREATE TABLE IF NOT EXISTS schema_migrations (
                 version VARCHAR(255) PRIMARY KEY,
@@ -25,11 +24,9 @@ async function runMigrations() {
             )
         `);
 
-        // Get applied migrations
         const appliedResult = await pool.query('SELECT version FROM schema_migrations ORDER BY version');
         const appliedMigrations = new Set(appliedResult.rows.map(r => r.version));
 
-        // Read migration files
         const migrationsDir = path.join(process.cwd(), 'migrations');
         const files = fs.readdirSync(migrationsDir)
             .filter(f => f.endsWith('.sql'))
@@ -39,11 +36,11 @@ async function runMigrations() {
             const version = file.replace('.sql', '');
 
             if (appliedMigrations.has(version)) {
-                console.log(`⏭️  Skipping ${file} (already applied)`);
+                console.log(`Skipping ${file} (already applied)`);
                 continue;
             }
 
-            console.log(`📄 Applying ${file}...`);
+            console.log(`Applying ${file}...`);
 
             const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
 
@@ -52,17 +49,17 @@ async function runMigrations() {
                 await pool.query(sql);
                 await pool.query('INSERT INTO schema_migrations (version) VALUES ($1)', [version]);
                 await pool.query('COMMIT');
-                console.log(`✅ Applied ${file}`);
+                console.log(`Applied ${file}`);
             } catch (err) {
                 await pool.query('ROLLBACK');
-                console.error(`❌ Failed to apply ${file}:`, err.message);
+                console.error(`Failed to apply ${file}:`, err.message);
                 throw err;
             }
         }
 
-        console.log('✅ All migrations completed');
+        console.log('All migrations completed');
     } catch (err) {
-        console.error('❌ Migration failed:', err);
+        console.error('Migration failed:', err);
         process.exit(1);
     } finally {
         await pool.end();
