@@ -56,10 +56,10 @@ export class SnapshotRepository {
                 );
 
                 await client.query(
-                    `UPDATE documents 
-                     SET last_snapshot_at = NOW(), 
-                         snapshot_storage = $2, 
-                         snapshot_size_bytes = $3 
+                    `UPDATE documents
+                     SET last_snapshot_at = NOW(),
+                         snapshot_storage = $2,
+                         snapshot_size_bytes = $3
                      WHERE id = $1`,
                     [documentId, 'minio', size]
                 );
@@ -71,18 +71,18 @@ export class SnapshotRepository {
                 );
             } else {
                 await client.query(
-                    `INSERT INTO crdt_snapshots (document_id, snapshot) 
-                     VALUES ($1, $2) 
-                     ON CONFLICT (document_id) 
-                     DO UPDATE SET snapshot = EXCLUDED.snapshot, updated_at = NOW()`,
+                    `INSERT INTO crdt_snapshots (document_id, snapshot)
+                     VALUES ($1, $2)
+                     ON CONFLICT (document_id)
+                         DO UPDATE SET snapshot = EXCLUDED.snapshot, updated_at = NOW()`,
                     [documentId, snapshotBuffer]
                 );
 
                 await client.query(
-                    `UPDATE documents 
-                     SET last_snapshot_at = NOW(), 
-                         snapshot_storage = $2, 
-                         snapshot_size_bytes = $3 
+                    `UPDATE documents
+                     SET last_snapshot_at = NOW(),
+                         snapshot_storage = $2,
+                         snapshot_size_bytes = $3
                      WHERE id = $1`,
                     [documentId, 'pg', size]
                 );
@@ -97,8 +97,8 @@ export class SnapshotRepository {
      */
     async getInfo(documentId) {
         const result = await pool.query(
-            `SELECT last_snapshot_at, snapshot_storage, snapshot_size_bytes 
-             FROM documents 
+            `SELECT last_snapshot_at, snapshot_storage, snapshot_size_bytes
+             FROM documents
              WHERE id = $1`,
             [documentId]
         );
@@ -110,7 +110,7 @@ export class SnapshotRepository {
      */
     async delete(documentId) {
         const info = await this.getInfo(documentId);
-        
+
         if (!info) return;
 
         if (info.snapshot_storage === 'minio') {
@@ -122,10 +122,10 @@ export class SnapshotRepository {
         }
 
         await pool.query('DELETE FROM crdt_snapshots WHERE document_id = $1', [documentId]);
-        
+
         await pool.query(
-            `UPDATE documents 
-             SET snapshot_storage = NULL, snapshot_size_bytes = 0, last_snapshot_at = NULL 
+            `UPDATE documents
+             SET snapshot_storage = NULL, snapshot_size_bytes = 0, last_snapshot_at = NULL
              WHERE id = $1`,
             [documentId]
         );

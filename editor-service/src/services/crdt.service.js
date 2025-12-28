@@ -66,7 +66,7 @@ class CRDTService {
 
             const newSnapshot = Y.encodeStateAsUpdate(ydoc);
             const { storage, size } = await snapshotRepository.save(
-                documentId, 
+                documentId,
                 Buffer.from(newSnapshot)
             );
 

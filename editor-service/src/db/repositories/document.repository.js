@@ -6,8 +6,8 @@ export class DocumentRepository {
      */
     async create(ownerId, title, vaultId = null, parentId = null, isFolder = false) {
         const result = await pool.query(
-            `INSERT INTO documents (owner_id, vault_id, parent_id, title, is_folder) 
-             VALUES ($1, $2, $3, $4, $5) 
+            `INSERT INTO documents (owner_id, vault_id, parent_id, title, is_folder)
+             VALUES ($1, $2, $3, $4, $5)
              RETURNING *`,
             [ownerId, vaultId, parentId, title || 'Untitled Document', isFolder]
         );
@@ -30,18 +30,18 @@ export class DocumentRepository {
      */
     async getByIdWithPermission(documentId, userId) {
         const result = await pool.query(
-            `SELECT d.*, 
-                    CASE 
+            `SELECT d.*,
+                    CASE
                         WHEN d.owner_id = $2 THEN 'owner'
                         ELSE COALESCE(dp.permission, 'none')
-                    END as user_permission
+                        END as user_permission
              FROM documents d
-             LEFT JOIN document_permissions dp ON dp.document_id = d.id AND dp.user_id = $2
+                      LEFT JOIN document_permissions dp ON dp.document_id = d.id AND dp.user_id = $2
              WHERE d.id = $1 AND d.is_deleted = false
                AND (d.owner_id = $2 OR EXISTS (
-                 SELECT 1 FROM document_permissions 
+                 SELECT 1 FROM document_permissions
                  WHERE document_id = $1 AND user_id = $2
-               ))`,
+             ))`,
             [documentId, userId]
         );
         return result.rows[0] || null;
@@ -52,7 +52,7 @@ export class DocumentRepository {
      */
     async getAllByUserId(userId) {
         const result = await pool.query(
-            `SELECT d.id, d.title, d.created_at, d.updated_at, 
+            `SELECT d.id, d.title, d.created_at, d.updated_at,
                     d.snapshot_size_bytes, d.snapshot_storage,
                     d.last_snapshot_at, d.is_folder, d.vault_id, d.parent_id
              FROM documents d
@@ -68,7 +68,7 @@ export class DocumentRepository {
      */
     async getByVaultId(vaultId) {
         const result = await pool.query(
-            `SELECT id, vault_id, parent_id, title, icon, is_folder, 
+            `SELECT id, vault_id, parent_id, title, icon, is_folder,
                     created_at, updated_at, snapshot_size_bytes
              FROM documents
              WHERE vault_id = $1 AND is_deleted = false
@@ -129,9 +129,9 @@ export class DocumentRepository {
      */
     async delete(documentId, ownerId) {
         const result = await pool.query(
-            `UPDATE documents 
-             SET is_deleted = true, updated_at = NOW() 
-             WHERE id = $1 AND owner_id = $2 
+            `UPDATE documents
+             SET is_deleted = true, updated_at = NOW()
+             WHERE id = $1 AND owner_id = $2
              RETURNING id`,
             [documentId, ownerId]
         );
@@ -143,10 +143,10 @@ export class DocumentRepository {
      */
     async updateSnapshotInfo(documentId, storage, sizeBytes) {
         await pool.query(
-            `UPDATE documents 
-             SET last_snapshot_at = NOW(), 
-                 snapshot_storage = $2, 
-                 snapshot_size_bytes = $3 
+            `UPDATE documents
+             SET last_snapshot_at = NOW(),
+                 snapshot_storage = $2,
+                 snapshot_size_bytes = $3
              WHERE id = $1`,
             [documentId, storage, sizeBytes]
         );
@@ -178,12 +178,12 @@ export class DocumentRepository {
      */
     async checkAccess(documentId, userId) {
         const result = await pool.query(
-            `SELECT 1 FROM documents 
+            `SELECT 1 FROM documents
              WHERE id = $1 AND is_deleted = false
                AND (owner_id = $2 OR EXISTS (
-                 SELECT 1 FROM document_permissions 
+                 SELECT 1 FROM document_permissions
                  WHERE document_id = $1 AND user_id = $2
-               ))`,
+             ))`,
             [documentId, userId]
         );
         return result.rows.length > 0;
@@ -197,10 +197,10 @@ export class DocumentRepository {
             `SELECT 1 FROM documents d
              WHERE d.id = $1 AND d.is_deleted = false
                AND (d.owner_id = $2 OR EXISTS (
-                 SELECT 1 FROM document_permissions 
-                 WHERE document_id = $1 AND user_id = $2 
+                 SELECT 1 FROM document_permissions
+                 WHERE document_id = $1 AND user_id = $2
                    AND permission IN ('write', 'admin')
-               ))`,
+             ))`,
             [documentId, userId]
         );
         return result.rows.length > 0;

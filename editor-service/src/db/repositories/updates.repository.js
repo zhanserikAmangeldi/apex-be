@@ -17,8 +17,8 @@ export class UpdatesRepository {
      */
     async loadSince(documentId, since = null) {
         let query = `
-            SELECT update_data, created_at 
-            FROM crdt_updates 
+            SELECT update_data, created_at
+            FROM crdt_updates
             WHERE document_id = $1
         `;
 
@@ -81,11 +81,11 @@ export class UpdatesRepository {
      */
     async getTimeRange(documentId) {
         const result = await pool.query(
-            `SELECT 
-                MIN(created_at) as oldest,
-                MAX(created_at) as newest,
-                COUNT(*) as count
-             FROM crdt_updates 
+            `SELECT
+                 MIN(created_at) as oldest,
+                 MAX(created_at) as newest,
+                 COUNT(*) as count
+             FROM crdt_updates
              WHERE document_id = $1`,
             [documentId]
         );
@@ -98,7 +98,7 @@ export class UpdatesRepository {
     async getTotalSize(documentId) {
         const result = await pool.query(
             `SELECT COALESCE(SUM(LENGTH(update_data)), 0) as total_size
-             FROM crdt_updates 
+             FROM crdt_updates
              WHERE document_id = $1`,
             [documentId]
         );

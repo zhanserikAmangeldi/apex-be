@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/config"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/handler"
@@ -23,11 +23,20 @@ import (
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/repository"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/service"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/pkg/jwt"
+	"github.com/zhanserikAmangeldi/apex-be/user-service/pkg/logger"
 )
 
 func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
+
+	// Initialize logger
+	logger.MustInit(logger.Config{
+		Level:       cfg.LogLevel,
+		Environment: cfg.Env,
+		ServiceName: "user-service",
+	})
+	defer logger.Sync()
 
 	// Set Gin mode
 	if cfg.IsProduction() {
@@ -39,21 +48,21 @@ func main() {
 	// Initialize PostgreSQL
 	dbPool, err := initDatabase(ctx, cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		logger.Fatal("Failed to initialize database", zap.Error(err))
 	}
 	defer dbPool.Close()
 
 	// Run migrations
-	log.Println("Running database migrations...")
+	logger.Info("Running database migrations...")
 	if err := migration.AutoMigrate(cfg.DBUrl); err != nil {
-		log.Fatalf("Migration failed: %v", err)
+		logger.Fatal("Migration failed", zap.Error(err))
 	}
-	log.Println("Migrations completed successfully")
+	logger.Info("Migrations completed successfully")
 
 	// Initialize Redis
 	redisClient, err := initRedis(ctx, cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize Redis: %v", err)
+		logger.Fatal("Failed to initialize Redis", zap.Error(err))
 	}
 	defer redisClient.Close()
 
@@ -74,9 +83,9 @@ func main() {
 
 	// Graceful shutdown
 	go func() {
-		log.Printf("User service starting on port %s", cfg.Port)
+		logger.Info("User service starting", zap.String("port", cfg.Port))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("Failed to start server: %v", err)
+			logger.Fatal("Failed to start server", zap.Error(err))
 		}
 	}()
 
@@ -85,16 +94,16 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down server...")
+	logger.Info("Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("Server forced to shutdown: %v", err)
+		logger.Error("Server forced to shutdown", zap.Error(err))
 	}
 
-	log.Println("Server stopped")
+	logger.Info("Server stopped")
 }
 
 func initDatabase(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
@@ -117,7 +126,7 @@ func initDatabase(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	log.Println("Connected to PostgreSQL")
+	logger.Info("Connected to PostgreSQL")
 	return pool, nil
 }
 
@@ -131,7 +140,7 @@ func initRedis(ctx context.Context, cfg *config.Config) (*redis.Client, error) {
 		return nil, fmt.Errorf("failed to ping Redis: %w", err)
 	}
 
-	log.Println("Connected to Redis")
+	logger.Info("Connected to Redis")
 	return client, nil
 }
 
@@ -191,14 +200,17 @@ func initDependencies(cfg *config.Config, dbPool *pgxpool.Pool, redisClient *red
 
 func setupRouter(cfg *config.Config, deps *Dependencies) *gin.Engine {
 	router := gin.New()
-	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
+
+	// Use custom logger middleware
+	router.Use(middleware.RequestLogger())
+	router.Use(middleware.RecoveryWithLogger())
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"status":  "healthy",
-			"service": "user-service",
+			"status":    "healthy",
+			"service":   "user-service",
+			"timestamp": time.Now().Unix(),
 		})
 	})
 

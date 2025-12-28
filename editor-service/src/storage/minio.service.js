@@ -114,7 +114,7 @@ class MinioService {
         return new Promise((resolve, reject) => {
             const objects = [];
             const stream = this.client.listObjects(bucket, prefix, recursive);
-            
+
             stream.on('data', (obj) => objects.push(obj));
             stream.on('end', () => resolve(objects));
             stream.on('error', reject);

@@ -39,7 +39,7 @@ class SnapshotWorker {
         }
 
         this.isRunning = false;
-        
+
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = null;
@@ -103,7 +103,7 @@ class SnapshotWorker {
                     SELECT d.id FROM documents d
                     WHERE d.last_snapshot_at IS NOT NULL
                       AND d.last_snapshot_at > crdt_updates.created_at
-                  )
+                )
             `);
 
             if (oldUpdatesResult.rowCount > 0) {
@@ -131,7 +131,7 @@ class SnapshotWorker {
      */
     async getStats() {
         const result = await pool.query(`
-            SELECT 
+            SELECT
                 COUNT(DISTINCT document_id) as documents_with_updates,
                 COUNT(*) as total_updates,
                 SUM(LENGTH(update_data)) as total_size_bytes
@@ -141,11 +141,11 @@ class SnapshotWorker {
         const pendingResult = await pool.query(`
             SELECT COUNT(*) as pending_snapshots
             FROM (
-                SELECT document_id
-                FROM crdt_updates
-                GROUP BY document_id
-                HAVING COUNT(*) >= $1
-            ) sub
+                     SELECT document_id
+                     FROM crdt_updates
+                     GROUP BY document_id
+                     HAVING COUNT(*) >= $1
+                 ) sub
         `, [config.snapshot.threshold]);
 
         return {

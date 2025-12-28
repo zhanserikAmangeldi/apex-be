@@ -7,6 +7,7 @@ export const config = {
     port: parseInt(process.env.PORT || '3000'),
     hocuspocusPort: parseInt(process.env.HOCUSPOCUS_PORT || '1234'),
     nodeEnv: process.env.NODE_ENV || 'development',
+    logLevel: process.env.LOG_LEVEL || 'info',
 
     // Database
     db: {

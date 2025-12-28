@@ -45,11 +45,11 @@ export async function query(text, params) {
     try {
         const result = await pool.query(text, params);
         const duration = Date.now() - start;
-        
+
         if (duration > 1000) {
             console.warn(`⚠️ Slow query (${duration}ms):`, text.substring(0, 100));
         }
-        
+
         return result;
     } catch (err) {
         console.error('❌ Query error:', err.message);

@@ -12,7 +12,7 @@ class AuthService {
             },
         });
 
-        this.tokenCache = new NodeCache({ 
+        this.tokenCache = new NodeCache({
             stdTTL: config.auth.tokenCacheTTL,
             checkperiod: 120,
         });
@@ -24,7 +24,7 @@ class AuthService {
     async validateToken(accessToken) {
         const cacheKey = `token:${accessToken}`;
         const cached = this.tokenCache.get(cacheKey);
-        
+
         if (cached) {
             return cached;
         }
