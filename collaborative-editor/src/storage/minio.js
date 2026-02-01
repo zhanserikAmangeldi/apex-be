@@ -12,9 +12,6 @@ export const minioClient = new Minio.Client({
     secretKey: process.env.MINIO_SECRET_KEY,
 });
 
-/**
- * Initialize MinIO buckets
- */
 export async function initializeBuckets() {
     const buckets = [
         process.env.MINIO_BUCKET_SNAPSHOTS,
@@ -37,9 +34,6 @@ export async function initializeBuckets() {
     }
 }
 
-/**
- * Upload buffer to MinIO
- */
 export async function uploadToMinio(bucket, path, buffer) {
     const stream = Readable.from(buffer);
 
@@ -54,9 +48,6 @@ export async function uploadToMinio(bucket, path, buffer) {
     );
 }
 
-/**
- * Download file from MinIO as Buffer
- */
 export async function downloadFromMinio(bucket, path) {
     return new Promise((resolve, reject) => {
         const chunks = [];
@@ -73,30 +64,18 @@ export async function downloadFromMinio(bucket, path) {
     });
 }
 
-/**
- * Generate presigned URL for upload (PUT)
- */
 export async function generatePresignedUploadUrl(bucket, path, expirySeconds = 3600) {
     return await minioClient.presignedPutObject(bucket, path, expirySeconds);
 }
 
-/**
- * Generate presigned URL for download (GET)
- */
 export async function generatePresignedDownloadUrl(bucket, path, expirySeconds = 3600) {
     return await minioClient.presignedGetObject(bucket, path, expirySeconds);
 }
 
-/**
- * Delete object from MinIO
- */
 export async function deleteFromMinio(bucket, path) {
     await minioClient.removeObject(bucket, path);
 }
 
-/**
- * Check if object exists
- */
 export async function objectExists(bucket, path) {
     try {
         await minioClient.statObject(bucket, path);
@@ -109,9 +88,6 @@ export async function objectExists(bucket, path) {
     }
 }
 
-/**
- * Get object metadata
- */
 export async function getObjectInfo(bucket, path) {
     return await minioClient.statObject(bucket, path);
 }

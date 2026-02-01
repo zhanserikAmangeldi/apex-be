@@ -7,11 +7,18 @@ import {
     generatePresignedUploadUrl,
     generatePresignedDownloadUrl
 } from './storage/minio.js';
-import vaultRouter from './vaults-api.js'
+import vaultRouter from './vaults-api.js';
+import redisClient from './services/redis.js';
+import { minioClient } from './storage/minio.js';
+import { getWorkerStats } from './workers/snapshot.js';
+import { metricsMiddleware, getMetrics } from './services/metrics.js';
+import pino from 'pino';
 
+const logger = pino({ name: 'api' });
 const app = express();
 
 app.use(express.json());
+app.use(metricsMiddleware());
 app.use('/api', vaultRouter)
 
 app.post('/api/auth/refresh', async (req, res) => {
@@ -37,7 +44,6 @@ app.post('/api/auth/refresh', async (req, res) => {
 
 app.post('/api/auth/logout', authenticateToken, async (req, res) => {
     try {
-        // Очищаем кэш для этого токена
         authClient.invalidateCache(req.accessToken);
 
         res.json({ success: true });
@@ -348,31 +354,90 @@ app.get('/api/documents/:id/attachments', authenticateToken, async (req, res) =>
 });
 
 app.get('/health', async (req, res) => {
+    const checks = {
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        checks: {}
+    };
+
     try {
         await pool.query('SELECT 1');
-
-        res.json({
-            status: 'ok',
-            timestamp: new Date().toISOString(),
-            services: {
-                database: 'connected',
-                auth: process.env.AUTH_SERVICE_URL
-            }
-        });
+        checks.checks.database = { status: 'up' };
     } catch (err) {
-        res.status(503).json({
-            status: 'error',
-            timestamp: new Date().toISOString(),
-            error: err.message
+        checks.checks.database = { status: 'down', error: err.message };
+        checks.status = 'unhealthy';
+    }
+
+    try {
+        await redisClient.ping();
+        checks.checks.redis = { status: 'up' };
+    } catch (err) {
+        checks.checks.redis = { status: 'down', error: err.message };
+        checks.status = 'unhealthy';
+    }
+
+    try {
+        await minioClient.listBuckets();
+        checks.checks.minio = { status: 'up' };
+    } catch (err) {
+        checks.checks.minio = { status: 'down', error: err.message };
+        checks.status = 'unhealthy';
+    }
+
+    try {
+        const authUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:8080';
+        const response = await fetch(`${authUrl}/health`, { 
+            signal: AbortSignal.timeout(2000) 
         });
+        checks.checks.authService = { 
+            status: response.ok ? 'up' : 'down',
+            url: authUrl
+        };
+    } catch (err) {
+        checks.checks.authService = { 
+            status: 'down', 
+            error: err.message 
+        };
+        checks.status = checks.status === 'healthy' ? 'degraded' : checks.status;
+    }
+
+    try {
+        const workerStats = await getWorkerStats();
+        checks.checks.snapshotWorker = {
+            status: 'up',
+            ...workerStats
+        };
+    } catch (err) {
+        checks.checks.snapshotWorker = { 
+            status: 'down', 
+            error: err.message 
+        };
+    }
+
+    const statusCode = checks.status === 'healthy' ? 200 : 
+                       checks.status === 'degraded' ? 200 : 503;
+    
+    res.status(statusCode).json(checks);
+});
+
+app.get('/metrics', async (req, res) => {
+    try {
+        res.set('Content-Type', 'text/plain; version=0.0.4');
+        res.send(await getMetrics());
+    } catch (err) {
+        logger.error({ err }, 'Failed to get metrics');
+        res.status(500).json({ error: 'Failed to get metrics' });
     }
 });
 
 export function startApiServer(port = 3000) {
-    app.listen(port, () => {
-        console.log(`✓ REST API listening on port ${port}`);
-        console.log(`✓ Auth service: ${process.env.AUTH_SERVICE_URL}`);
+    const server = app.listen(port, () => {
+        logger.info({ port }, 'REST API listening');
+        logger.info({ authService: process.env.AUTH_SERVICE_URL }, 'Auth service configured');
     });
+
+    return server;
 }
 
 export default app;

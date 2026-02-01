@@ -126,12 +126,16 @@ services:
         condition: service_healthy
       user-service:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - DB_HOST=${EDITOR_DB_HOST}
       - DB_PORT=5432
       - DB_NAME=${EDITOR_DB_NAME}
       - DB_USER=${EDITOR_DB_USER}
       - DB_PASSWORD=${EDITOR_DB_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
       - MINIO_ENDPOINT=${MINIO_HOST}
       - MINIO_PORT=${MINIO_API_PORT}
       - MINIO_USE_SSL=${MINIO_USE_SSL}
@@ -140,6 +144,7 @@ services:
       - MINIO_BUCKET_SNAPSHOTS=${MINIO_BUCKET_SNAPSHOTS}
       - MINIO_BUCKET_ATTACHMENTS=${MINIO_BUCKET_ATTACHMENTS}
       - AUTH_SERVICE_URL=http://user-service:${HTTP_PORT}
+      - JWT_SECRET=${JWT_SECRET}
       - PORT=${EDITOR_HTTP_PORT}
       - HOCUSPOCUS_PORT=${EDITOR_WS_PORT}
       - SNAPSHOT_SIZE_LIMIT_MB=${SNAPSHOT_SIZE_LIMIT_MB}

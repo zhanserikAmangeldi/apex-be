@@ -13,6 +13,7 @@
     "@hocuspocus/extension-database": "^2.13.0",
     "@hocuspocus/server": "^2.13.0",
     "axios": "^1.13.2",
+    "axios-retry": "^4.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
@@ -23,6 +24,7 @@
     "pg": "^8.11.0",
     "pino": "^8.16.2",
     "pino-pretty": "^10.2.3",
+    "prom-client": "^15.1.0",
     "redis": "^4.6.11",
     "ws": "^8.14.0",
     "yjs": "^13.6.10"

@@ -2,59 +2,108 @@ import dotenv from 'dotenv';
 import { createHocuspocusServer } from './hocuspocus.js';
 import { startApiServer } from './api.js';
 import { initializeBuckets } from './storage/minio.js';
-import { startSnapshotWorker } from './workers/snapshot.js';
+import { startSnapshotWorker, stopSnapshotWorker } from './workers/snapshot.js';
 import pool from './db/pool.js';
+import redisClient from './services/redis.js';
+import pino from 'pino';
 
 dotenv.config();
 
+const logger = pino({ name: 'main' });
 const PORT = parseInt(process.env.PORT || '3000');
 const HOCUSPOCUS_PORT = parseInt(process.env.HOCUSPOCUS_PORT || '1234');
 
+let hocuspocusServer = null;
+let httpServer = null;
+let isShuttingDown = false;
+
 async function main() {
-    console.log('🚀 Starting Collaborative Editor Backend...\n');
+    logger.info('Starting Collaborative Editor Backend...');
 
     try {
-        console.log('📦 Initializing MinIO buckets...');
+        logger.info('Initializing MinIO buckets...');
         await initializeBuckets();
-        console.log('');
 
-        console.log('Starting Hocuspocus WebSocket server...');
-        const hocuspocusServer = createHocuspocusServer();
+        logger.info('Starting Hocuspocus WebSocket server...');
+        hocuspocusServer = createHocuspocusServer();
         await hocuspocusServer.listen();
-        console.log(`Hocuspocus listening on port ${HOCUSPOCUS_PORT}\n`);
+        logger.info({ port: HOCUSPOCUS_PORT }, 'Hocuspocus listening');
 
-        console.log('Starting REST API server...');
-        startApiServer(PORT);
-        console.log('');
+        logger.info('Starting REST API server...');
+        httpServer = startApiServer(PORT);
 
-        console.log('Starting snapshot worker...');
+        logger.info('Starting snapshot worker...');
         startSnapshotWorker();
-        console.log('');
 
-        console.log('All services started successfully!\n');
-        console.log(`REST API:       http://localhost:${PORT}`);
-        console.log(`WebSocket:      ws://localhost:${HOCUSPOCUS_PORT}`);
-        console.log(`Database:       ${process.env.DB_HOST}:${process.env.DB_PORT}`);
-        console.log(`MinIO:          ${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}`);
-
-        process.on('SIGTERM', async () => {
-            console.log('\nShutting down gracefully...');
-            await hocuspocusServer.destroy();
-            await pool.end();
-            process.exit(0);
-        });
-
-        process.on('SIGINT', async () => {
-            console.log('\nShutting down gracefully...');
-            await hocuspocusServer.destroy();
-            await pool.end();
-            process.exit(0);
-        });
+        logger.info({
+            restApi: `http://localhost:${PORT}`,
+            webSocket: `ws://localhost:${HOCUSPOCUS_PORT}`,
+            database: `${process.env.DB_HOST}:${process.env.DB_PORT}`,
+            minio: `${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}`
+        }, 'All services started successfully');
 
     } catch (err) {
-        console.error('❌ Failed to start server:', err);
+        logger.error({ err }, 'Failed to start server');
         process.exit(1);
     }
 }
+
+async function gracefulShutdown(signal) {
+    if (isShuttingDown) {
+        logger.warn('Shutdown already in progress');
+        return;
+    }
+
+    isShuttingDown = true;
+    logger.info({ signal }, 'Received shutdown signal, shutting down gracefully...');
+
+    try {
+        if (httpServer) {
+            await new Promise((resolve) => {
+                httpServer.close(() => {
+                    logger.info('HTTP server closed');
+                    resolve();
+                });
+            });
+        }
+
+        stopSnapshotWorker();
+        logger.info('Snapshot worker stopped');
+
+        if (hocuspocusServer) {
+            await hocuspocusServer.destroy();
+            logger.info('Hocuspocus server closed');
+        }
+
+        logger.info('Waiting for active operations to complete...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        await pool.end();
+        logger.info('Database connections closed');
+
+        await redisClient.quit();
+        logger.info('Redis connection closed');
+
+        logger.info('Graceful shutdown completed');
+        process.exit(0);
+
+    } catch (err) {
+        logger.error({ err }, 'Error during shutdown');
+        process.exit(1);
+    }
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+process.on('uncaughtException', (err) => {
+    logger.error({ err }, 'Uncaught exception');
+    gracefulShutdown('uncaughtException');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    logger.error({ reason, promise }, 'Unhandled rejection');
+    gracefulShutdown('unhandledRejection');
+});
 
 main();

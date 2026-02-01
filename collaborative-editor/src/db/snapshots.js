@@ -3,10 +3,6 @@ import { minioClient, downloadFromMinio, uploadToMinio } from '../storage/minio.
 
 const SNAPSHOT_SIZE_LIMIT = parseInt(process.env.SNAPSHOT_SIZE_LIMIT_MB || '5') * 1024 * 1024;
 
-/**
- * Load snapshot for a document
- * Returns Buffer or null
- */
 export async function loadSnapshot(documentId) {
     const docResult = await pool.query(
         'SELECT snapshot_storage FROM documents WHERE id = $1',
@@ -36,10 +32,6 @@ export async function loadSnapshot(documentId) {
     }
 }
 
-/**
- * Save snapshot
- * Automatically chooses storage (PG or MinIO) based on size
- */
 export async function saveSnapshot(documentId, snapshotBuffer) {
     const size = snapshotBuffer.length;
     const storage = size > SNAPSHOT_SIZE_LIMIT ? 'minio' : 'pg';
@@ -102,9 +94,6 @@ export async function saveSnapshot(documentId, snapshotBuffer) {
     }
 }
 
-/**
- * Get snapshot metadata
- */
 export async function getSnapshotInfo(documentId) {
     const result = await pool.query(
         `SELECT last_snapshot_at, snapshot_storage, snapshot_size_bytes 
