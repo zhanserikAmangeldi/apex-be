@@ -306,6 +306,46 @@ export class DocumentRepository {
         );
         return result.rows.length > 0;
     }
+
+    /**
+     * Search documents by title
+     */
+    async searchByTitle(userId, query, vaultId = null, limit = 10) {
+        const searchPattern = `%${query}%`;
+        
+        let sql = `
+            SELECT d.id, d.vault_id, d.title, d.icon, d.is_folder,
+                   CASE
+                       WHEN d.owner_id = $1 THEN 'owner'
+                       WHEN dp.permission IS NOT NULL THEN dp.permission
+                       WHEN d.vault_id IS NOT NULL AND vp.permission IS NOT NULL THEN vp.permission
+                       ELSE 'none'
+                   END as user_permission
+            FROM documents d
+            LEFT JOIN document_permissions dp ON dp.document_id = d.id AND dp.user_id = $1
+            LEFT JOIN vault_permissions vp ON vp.vault_id = d.vault_id AND vp.user_id = $1
+            WHERE d.is_deleted = false
+              AND d.is_folder = false
+              AND d.title ILIKE $2
+              AND (d.owner_id = $1 
+                   OR EXISTS (SELECT 1 FROM document_permissions WHERE document_id = d.id AND user_id = $1)
+                   OR EXISTS (SELECT 1 FROM vault_permissions WHERE vault_id = d.vault_id AND user_id = $1)
+              )
+        `;
+        
+        const params = [userId, searchPattern];
+        
+        if (vaultId) {
+            sql += ` AND d.vault_id = $${params.length + 1}`;
+            params.push(vaultId);
+        }
+        
+        sql += ` ORDER BY d.title ASC LIMIT $${params.length + 1}`;
+        params.push(limit);
+        
+        const result = await pool.query(sql, params);
+        return result.rows;
+    }
 }
 
 export const documentRepository = new DocumentRepository();

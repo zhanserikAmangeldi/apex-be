@@ -396,11 +396,9 @@ func proxyRequest(targetURL string, timeout time.Duration) gin.HandlerFunc {
 				originalPath := c.Request.URL.Path
 				targetPath := stripServicePrefix(originalPath)
 
-				if c.Request.URL.RawQuery != "" {
-					targetPath += "?" + c.Request.URL.RawQuery
-				}
-
+				// Preserve query string
 				req.URL.Path = targetPath
+				req.URL.RawQuery = c.Request.URL.RawQuery
 
 				if userID, exists := c.Get("user_id"); exists {
 					req.Header.Set("X-User-ID", userID.(string))
@@ -420,8 +418,8 @@ func proxyRequest(targetURL string, timeout time.Duration) gin.HandlerFunc {
 				req.Header.Set("X-Request-ID", requestID)
 
 				if gin.Mode() == gin.DebugMode {
-					log.Printf("Proxying: %s %s → %s%s [%s]",
-						req.Method, originalPath, target.Host, targetPath, requestID)
+					log.Printf("Proxying: %s %s → %s%s?%s [%s]",
+						req.Method, originalPath, target.Host, targetPath, req.URL.RawQuery, requestID)
 				}
 			},
 			ModifyResponse: func(resp *http.Response) error {
