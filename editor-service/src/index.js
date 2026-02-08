@@ -11,6 +11,7 @@ import { logger, httpLogger } from './services/logger.service.js';
 import documentsRoutes from './api/routes/documents.routes.js';
 import vaultsRoutes from './api/routes/vaults.routes.js';
 import attachmentsRoutes from './api/routes/attachments.routes.js';
+import tagsRoutes from './api/routes/tags.routes.js';
 
 import { errorHandler, notFoundHandler } from './api/middleware/index.js';
 
@@ -61,6 +62,7 @@ async function main() {
     app.use('/api/v1/documents', documentsRoutes);
     app.use('/api/v1/vaults', vaultsRoutes);
     app.use('/api/v1/attachments', attachmentsRoutes);
+    app.use('/api/v1', tagsRoutes);
     
     // Public download endpoint (bypasses API Gateway auth)
     app.get('/public/attachments/:id/download', async (req, res, next) => {
