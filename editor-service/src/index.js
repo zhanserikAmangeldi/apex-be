@@ -12,6 +12,8 @@ import documentsRoutes from './api/routes/documents.routes.js';
 import vaultsRoutes from './api/routes/vaults.routes.js';
 import attachmentsRoutes from './api/routes/attachments.routes.js';
 import tagsRoutes from './api/routes/tags.routes.js';
+import searchRoutes from './api/routes/search.routes.js';
+import graphRoutes from './api/routes/graph.routes.js';
 
 import { errorHandler, notFoundHandler } from './api/middleware/index.js';
 
@@ -63,6 +65,8 @@ async function main() {
     app.use('/api/v1/vaults', vaultsRoutes);
     app.use('/api/v1/attachments', attachmentsRoutes);
     app.use('/api/v1', tagsRoutes);
+    app.use('/api/v1/search', searchRoutes);
+    app.use('/api/v1', graphRoutes);
     
     // Public download endpoint (bypasses API Gateway auth)
     app.get('/public/attachments/:id/download', async (req, res, next) => {
