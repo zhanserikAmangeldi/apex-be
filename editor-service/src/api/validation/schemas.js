@@ -100,13 +100,19 @@ export const vaultIdParamSchema = z.object({
 export const permissionEnum = z.enum(['read', 'write', 'admin']);
 
 export const shareVaultSchema = z.object({
-    userId: uuidSchema,
+    userId: uuidSchema.optional(),
+    email: z.string().email('Invalid email format').optional(),
     permission: permissionEnum,
+}).refine(data => data.userId || data.email, {
+    message: 'Either userId or email must be provided',
 });
 
 export const shareDocumentSchema = z.object({
-    userId: uuidSchema,
+    userId: uuidSchema.optional(),
+    email: z.string().email('Invalid email format').optional(),
     permission: permissionEnum,
+}).refine(data => data.userId || data.email, {
+    message: 'Either userId or email must be provided',
 });
 
 export const uploadAttachmentSchema = z.object({
@@ -115,6 +121,27 @@ export const uploadAttachmentSchema = z.object({
 
 export const attachmentQuerySchema = z.object({
     documentId: uuidSchema.optional(),
+});
+
+export const initiateAttachmentUploadSchema = z.object({
+    documentId: uuidSchema,
+    filename: z
+        .string()
+        .min(1, 'Filename is required')
+        .max(500, 'Filename must be less than 500 characters'),
+    mimeType: z
+        .string()
+        .min(1, 'MIME type is required')
+        .max(255, 'MIME type must be less than 255 characters'),
+    size: z
+        .number()
+        .int()
+        .positive('File size must be positive')
+        .max(100 * 1024 * 1024, 'File size must be less than 100MB'),
+});
+
+export const attachmentIdParamSchema = z.object({
+    id: uuidSchema,
 });
 
 export const wsAuthSchema = z.object({

@@ -63,6 +63,25 @@ export class VaultRepository {
     }
 
     /**
+     * Get vaults shared with user (not owned by user)
+     */
+    async getSharedWithUser(userId) {
+        const result = await pool.query(
+            `SELECT v.*,
+                    COUNT(DISTINCT d.id) FILTER (WHERE d.is_folder = false) as document_count,
+                    vp.permission as user_permission
+             FROM vaults v
+                      INNER JOIN vault_permissions vp ON vp.vault_id = v.id
+                      LEFT JOIN documents d ON d.vault_id = v.id AND d.is_deleted = false
+             WHERE vp.user_id = $1 AND v.is_deleted = false
+             GROUP BY v.id, vp.permission
+             ORDER BY v.updated_at DESC`,
+            [userId]
+        );
+        return result.rows;
+    }
+
+    /**
      * Update vault
      */
     async update(vaultId, ownerId, updates) {

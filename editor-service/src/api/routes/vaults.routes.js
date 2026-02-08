@@ -32,6 +32,24 @@ router.get('/', authenticateToken, async (req, res, next) => {
 });
 
 /**
+ * GET /vaults/shared - Get vaults shared with user
+ */
+router.get('/shared', authenticateToken, async (req, res, next) => {
+    try {
+        const vaults = await vaultRepository.getSharedWithUser(req.user.userId);
+
+        apiLogger.debug('Shared vaults fetched', {
+            userId: req.user.userId,
+            count: vaults.length
+        });
+
+        res.json({ vaults });
+    } catch (err) {
+        next(err);
+    }
+});
+
+/**
  * POST /vaults - Create new vault
  */
 router.post('/',
@@ -121,6 +139,42 @@ router.put('/:id',
 );
 
 /**
+ * PATCH /vaults/:id - Partial update vault
+ */
+router.patch('/:id',
+    authenticateToken,
+    validateParams(vaultIdParamSchema),
+    validateBody(updateVaultSchema),
+    async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const { name, description, icon, color, settings } = req.body;
+
+            const vault = await vaultRepository.update(id, req.user.userId, {
+                name,
+                description,
+                icon,
+                color,
+                settings
+            });
+
+            if (!vault) {
+                throw new NotFoundError('Vault not found or no permission to update');
+            }
+
+            logAudit('vault_updated', req.user.userId, {
+                vaultId: id,
+                changes: { name, description, icon, color },
+            });
+
+            res.json(vault);
+        } catch (err) {
+            next(err);
+        }
+    }
+);
+
+/**
  * DELETE /vaults/:id - Delete vault
  */
 router.delete('/:id',
@@ -160,7 +214,7 @@ router.get('/:id/documents',
                 throw new ForbiddenError('No access to this vault');
             }
 
-            const documents = await documentRepository.getByVaultId(id);
+            const documents = await documentRepository.getByVaultId(id, req.user.userId);
             res.json({ documents });
         } catch (err) {
             next(err);
@@ -215,11 +269,43 @@ router.post('/:id/share',
     async (req, res, next) => {
         try {
             const { id } = req.params;
-            const { userId, permission } = req.body;
+            let { userId, email, permission } = req.body;
 
             const vault = await vaultRepository.getByIdWithPermission(id, req.user.userId);
             if (!vault || vault.user_permission !== 'owner') {
                 throw new ForbiddenError('Only vault owner can share');
+            }
+
+            // If email is provided, fetch userId from user-service
+            if (email && !userId) {
+                try {
+                    const userServiceUrl = process.env.USER_SERVICE_URL || 'http://user-service:8080';
+                    const response = await fetch(`${userServiceUrl}/api/v1/users/search?email=${encodeURIComponent(email)}`, {
+                        headers: {
+                            'Authorization': req.headers.authorization
+                        }
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 404) {
+                            throw new NotFoundError('User with this email not found');
+                        }
+                        throw new Error('Failed to fetch user by email');
+                    }
+
+                    const userData = await response.json();
+                    userId = userData.id;
+                } catch (error) {
+                    if (error instanceof NotFoundError) {
+                        throw error;
+                    }
+                    apiLogger.error('Error fetching user by email', { error: error.message });
+                    throw new Error('Failed to find user');
+                }
+            }
+
+            if (!userId) {
+                throw new Error('Either userId or email must be provided');
             }
 
             const result = await vaultRepository.share(id, userId, permission);
@@ -227,6 +313,7 @@ router.post('/:id/share',
             logAudit('vault_shared', req.user.userId, {
                 vaultId: id,
                 sharedWithUserId: userId,
+                sharedWithEmail: email,
                 permission,
             });
 
@@ -249,9 +336,15 @@ router.delete('/:id/share/:userId',
         try {
             const { id, userId } = req.params;
 
+            // Check if user is owner or admin
             const vault = await vaultRepository.getByIdWithPermission(id, req.user.userId);
-            if (!vault || vault.user_permission !== 'owner') {
-                throw new ForbiddenError('Only vault owner can modify sharing');
+            if (!vault) {
+                throw new NotFoundError('Vault not found');
+            }
+
+            const canManageAccess = vault.user_permission === 'owner' || vault.user_permission === 'admin';
+            if (!canManageAccess) {
+                throw new ForbiddenError('Only owners and admins can modify sharing');
             }
 
             const result = await vaultRepository.unshare(id, userId);
@@ -273,6 +366,49 @@ router.delete('/:id/share/:userId',
 );
 
 /**
+ * PATCH /vaults/:id/share/:userId - Update user permission
+ */
+router.patch('/:id/share/:userId',
+    authenticateToken,
+    async (req, res, next) => {
+        try {
+            const { id, userId } = req.params;
+            const { permission } = req.body;
+
+            // Check if user is owner or admin
+            const vault = await vaultRepository.getByIdWithPermission(id, req.user.userId);
+            if (!vault) {
+                throw new NotFoundError('Vault not found');
+            }
+
+            const canManageAccess = vault.user_permission === 'owner' || vault.user_permission === 'admin';
+            if (!canManageAccess) {
+                throw new ForbiddenError('Only owners and admins can modify permissions');
+            }
+
+            const result = await vaultRepository.updatePermission(id, userId, permission);
+
+            if (!result) {
+                throw new NotFoundError('User permission not found');
+            }
+
+            logAudit('vault_permission_updated', req.user.userId, {
+                vaultId: id,
+                userId,
+                newPermission: permission,
+            });
+
+            res.json({
+                message: 'Permission updated successfully',
+                permission: result
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+);
+
+/**
  * GET /vaults/:id/collaborators - Get vault collaborators
  */
 router.get('/:id/collaborators',
@@ -282,9 +418,15 @@ router.get('/:id/collaborators',
         try {
             const { id } = req.params;
 
-            const hasAccess = await vaultRepository.checkAccess(id, req.user.userId);
-            if (!hasAccess) {
-                throw new ForbiddenError('No access to this vault');
+            // Check if user is owner or admin
+            const vault = await vaultRepository.getByIdWithPermission(id, req.user.userId);
+            if (!vault) {
+                throw new NotFoundError('Vault not found');
+            }
+
+            const canManageAccess = vault.user_permission === 'owner' || vault.user_permission === 'admin';
+            if (!canManageAccess) {
+                throw new ForbiddenError('Only owners and admins can view collaborators');
             }
 
             const collaborators = await vaultRepository.getCollaborators(id);

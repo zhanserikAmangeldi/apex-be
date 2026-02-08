@@ -105,6 +105,15 @@ export function validate(schemas) {
  * Format Zod errors for API response
  */
 function formatZodErrors(error, location) {
+    if (!error.errors || !Array.isArray(error.errors)) {
+        return [{
+            location,
+            path: '',
+            message: error.message || 'Validation failed',
+            code: 'unknown',
+        }];
+    }
+    
     return error.errors.map((err) => ({
         location,
         path: err.path.join('.'),

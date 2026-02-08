@@ -10,6 +10,7 @@ import { logger, httpLogger } from './services/logger.service.js';
 
 import documentsRoutes from './api/routes/documents.routes.js';
 import vaultsRoutes from './api/routes/vaults.routes.js';
+import attachmentsRoutes from './api/routes/attachments.routes.js';
 
 import { errorHandler, notFoundHandler } from './api/middleware/index.js';
 
@@ -57,6 +58,7 @@ async function main() {
 
     app.use('/api/v1/documents', documentsRoutes);
     app.use('/api/v1/vaults', vaultsRoutes);
+    app.use('/api/v1/attachments', attachmentsRoutes);
 
     app.get('/api/v1/stats/worker', async (req, res) => {
         const stats = await snapshotWorker.getStats();

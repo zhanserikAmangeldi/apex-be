@@ -97,14 +97,29 @@ class MinioService {
      * Generate presigned URL for upload (PUT)
      */
     async generateUploadUrl(bucket, path, expirySeconds = 3600) {
-        return await this.client.presignedPutObject(bucket, path, expirySeconds);
+        const url = await this.client.presignedPutObject(bucket, path, expirySeconds);
+        return this.replaceHostname(url);
     }
 
     /**
      * Generate presigned URL for download (GET)
      */
     async generateDownloadUrl(bucket, path, expirySeconds = 3600) {
-        return await this.client.presignedGetObject(bucket, path, expirySeconds);
+        const url = await this.client.presignedGetObject(bucket, path, expirySeconds);
+        return this.replaceHostname(url);
+    }
+
+    /**
+     * Replace internal hostname with external one for browser access
+     */
+    replaceHostname(url) {
+        // If external endpoint is configured and different from internal
+        if (config.minio.externalEndpoint && config.minio.externalEndpoint !== config.minio.endpoint) {
+            const internalHost = `${config.minio.endpoint}:${config.minio.port}`;
+            const externalHost = `${config.minio.externalEndpoint}:${config.minio.externalPort}`;
+            return url.replace(internalHost, externalHost);
+        }
+        return url;
     }
 
     /**

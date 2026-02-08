@@ -153,3 +153,33 @@ func (h *UserHandler) DeleteMe(c *gin.Context) {
 
 	c.JSON(http.StatusOK, dto.SuccessResponse{Message: "Account deleted successfully"})
 }
+
+// GetUserByEmail godoc
+// @Summary Get user by email
+// @Tags users
+// @Security BearerAuth
+// @Param email query string true "User email"
+// @Success 200 {object} models.PublicUser
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /api/v1/users/search [get]
+func (h *UserHandler) GetUserByEmail(c *gin.Context) {
+	email := c.Query("email")
+	if email == "" {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("validation_error", "Email is required"))
+		return
+	}
+
+	user, err := h.userRepo.GetByEmail(c.Request.Context(), email)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			c.JSON(http.StatusNotFound, dto.NewErrorResponse("user_not_found", "User not found"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse("internal_error", ""))
+		return
+	}
+
+	// Return public user info only
+	c.JSON(http.StatusOK, user.ToPublic())
+}

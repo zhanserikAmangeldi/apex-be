@@ -224,6 +224,7 @@ func setupRouter(cfg *config.Config, deps *Dependencies) *gin.Engine {
 				users.GET("/me", deps.UserHandler.GetMe)
 				users.PUT("/me", deps.UserHandler.UpdateMe)
 				users.DELETE("/me", deps.UserHandler.DeleteMe)
+				users.GET("/search", deps.UserHandler.GetUserByEmail)
 				users.GET("/:id", deps.UserHandler.GetUserByID)
 
 				users.POST("/upload-avatar", deps.AvatarHandler.UploadAvatar)

@@ -33,15 +33,18 @@ export class DocumentRepository {
             `SELECT d.*,
                     CASE
                         WHEN d.owner_id = $2 THEN 'owner'
-                        ELSE COALESCE(dp.permission, 'none')
-                        END as user_permission
+                        WHEN dp.permission IS NOT NULL THEN dp.permission
+                        WHEN d.vault_id IS NOT NULL AND vp.permission IS NOT NULL THEN vp.permission
+                        ELSE 'none'
+                    END as user_permission
              FROM documents d
                       LEFT JOIN document_permissions dp ON dp.document_id = d.id AND dp.user_id = $2
+                      LEFT JOIN vault_permissions vp ON vp.vault_id = d.vault_id AND vp.user_id = $2
              WHERE d.id = $1 AND d.is_deleted = false
-               AND (d.owner_id = $2 OR EXISTS (
-                 SELECT 1 FROM document_permissions
-                 WHERE document_id = $1 AND user_id = $2
-             ))`,
+               AND (d.owner_id = $2 
+                    OR EXISTS (SELECT 1 FROM document_permissions WHERE document_id = $1 AND user_id = $2)
+                    OR EXISTS (SELECT 1 FROM vault_permissions WHERE vault_id = d.vault_id AND user_id = $2)
+               )`,
             [documentId, userId]
         );
         return result.rows[0] || null;
@@ -64,16 +67,42 @@ export class DocumentRepository {
     }
 
     /**
-     * Get documents in vault
+     * Get documents shared with user
      */
-    async getByVaultId(vaultId) {
+    async getSharedWithUser(userId) {
         const result = await pool.query(
-            `SELECT id, vault_id, parent_id, title, icon, is_folder,
-                    created_at, updated_at, snapshot_size_bytes
-             FROM documents
-             WHERE vault_id = $1 AND is_deleted = false
-             ORDER BY is_folder DESC, title ASC`,
-            [vaultId]
+            `SELECT d.id, d.title, d.created_at, d.updated_at,
+                    d.snapshot_size_bytes, d.snapshot_storage,
+                    d.last_snapshot_at, d.is_folder, d.vault_id, d.parent_id,
+                    d.owner_id, dp.permission as user_permission
+             FROM documents d
+             INNER JOIN document_permissions dp ON dp.document_id = d.id
+             WHERE dp.user_id = $1 AND d.is_deleted = false
+             ORDER BY d.updated_at DESC`,
+            [userId]
+        );
+        return result.rows;
+    }
+
+    /**
+     * Get documents in vault with user permissions
+     */
+    async getByVaultId(vaultId, userId) {
+        const result = await pool.query(
+            `SELECT d.id, d.vault_id, d.parent_id, d.owner_id, d.title, d.icon, d.is_folder,
+                    d.created_at, d.updated_at, d.snapshot_size_bytes, d.snapshot_storage, d.last_snapshot_at,
+                    CASE
+                        WHEN d.owner_id = $2 THEN 'owner'
+                        WHEN dp.permission IS NOT NULL THEN dp.permission
+                        WHEN vp.permission IS NOT NULL THEN vp.permission
+                        ELSE 'none'
+                    END as user_permission
+             FROM documents d
+                      LEFT JOIN document_permissions dp ON dp.document_id = d.id AND dp.user_id = $2
+                      LEFT JOIN vault_permissions vp ON vp.vault_id = d.vault_id AND vp.user_id = $2
+             WHERE d.vault_id = $1 AND d.is_deleted = false
+             ORDER BY d.is_folder DESC, d.title ASC`,
+            [vaultId, userId]
         );
         return result.rows;
     }
@@ -178,12 +207,12 @@ export class DocumentRepository {
      */
     async checkAccess(documentId, userId) {
         const result = await pool.query(
-            `SELECT 1 FROM documents
-             WHERE id = $1 AND is_deleted = false
-               AND (owner_id = $2 OR EXISTS (
-                 SELECT 1 FROM document_permissions
-                 WHERE document_id = $1 AND user_id = $2
-             ))`,
+            `SELECT 1 FROM documents d
+             WHERE d.id = $1 AND d.is_deleted = false
+               AND (d.owner_id = $2 
+                    OR EXISTS (SELECT 1 FROM document_permissions WHERE document_id = $1 AND user_id = $2)
+                    OR EXISTS (SELECT 1 FROM vault_permissions WHERE vault_id = d.vault_id AND user_id = $2)
+               )`,
             [documentId, userId]
         );
         return result.rows.length > 0;
@@ -196,11 +225,83 @@ export class DocumentRepository {
         const result = await pool.query(
             `SELECT 1 FROM documents d
              WHERE d.id = $1 AND d.is_deleted = false
-               AND (d.owner_id = $2 OR EXISTS (
-                 SELECT 1 FROM document_permissions
-                 WHERE document_id = $1 AND user_id = $2
-                   AND permission IN ('write', 'admin')
-             ))`,
+               AND (d.owner_id = $2 
+                    OR EXISTS (
+                        SELECT 1 FROM document_permissions
+                        WHERE document_id = $1 AND user_id = $2
+                        AND permission IN ('write', 'admin')
+                    )
+                    OR EXISTS (
+                        SELECT 1 FROM vault_permissions
+                        WHERE vault_id = d.vault_id AND user_id = $2
+                        AND permission IN ('write', 'admin')
+                    )
+               )`,
+            [documentId, userId]
+        );
+        return result.rows.length > 0;
+    }
+
+    /**
+     * Share document with user
+     */
+    async share(documentId, userId, permission) {
+        const result = await pool.query(
+            `INSERT INTO document_permissions (document_id, user_id, permission)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (document_id, user_id)
+                 DO UPDATE SET permission = EXCLUDED.permission
+             RETURNING *`,
+            [documentId, userId, permission]
+        );
+        return result.rows[0];
+    }
+
+    /**
+     * Remove user access from document
+     */
+    async unshare(documentId, userId) {
+        const result = await pool.query(
+            'DELETE FROM document_permissions WHERE document_id = $1 AND user_id = $2 RETURNING id',
+            [documentId, userId]
+        );
+        return result.rows[0] || null;
+    }
+
+    /**
+     * Get all collaborators of a document
+     */
+    async getCollaborators(documentId) {
+        const result = await pool.query(
+            `SELECT dp.user_id, dp.permission, dp.created_at
+             FROM document_permissions dp
+             WHERE dp.document_id = $1
+             ORDER BY dp.created_at DESC`,
+            [documentId]
+        );
+        return result.rows;
+    }
+
+    /**
+     * Update user permission for document
+     */
+    async updatePermission(documentId, userId, permission) {
+        const result = await pool.query(
+            `UPDATE document_permissions
+             SET permission = $3
+             WHERE document_id = $1 AND user_id = $2
+             RETURNING *`,
+            [documentId, userId, permission]
+        );
+        return result.rows[0] || null;
+    }
+
+    /**
+     * Check if user is document owner
+     */
+    async isOwner(documentId, userId) {
+        const result = await pool.query(
+            `SELECT 1 FROM documents WHERE id = $1 AND owner_id = $2`,
             [documentId, userId]
         );
         return result.rows.length > 0;

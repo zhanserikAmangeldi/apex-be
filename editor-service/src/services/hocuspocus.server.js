@@ -42,13 +42,17 @@ export function createHocuspocusServer() {
                     throw new Error('Access denied to this document');
                 }
 
-                console.log(`User ${user.username} authenticated for document ${documentId}`);
+                // Check if user has write access
+                const hasWriteAccess = await documentRepository.checkWriteAccess(documentId, user.userId);
+
+                console.log(`User ${user.username} authenticated for document ${documentId} (write: ${hasWriteAccess})`);
 
                 return {
                     user: {
                         id: user.userId,
                         name: user.displayName || user.username,
                         email: user.email,
+                        canWrite: hasWriteAccess,
                     },
                 };
             } catch (err) {
@@ -93,6 +97,12 @@ export function createHocuspocusServer() {
          */
         async onChange({ documentName, document, context }) {
             const documentId = documentName;
+
+            // Check if user has write access
+            if (!context.user?.canWrite) {
+                console.log(`User ${context.user?.name} attempted to edit read-only document ${documentId}`);
+                return; // Ignore changes from read-only users
+            }
 
             try {
                 const update = Y.encodeStateAsUpdate(document);
