@@ -227,12 +227,8 @@ router.get('/:id',
                 throw new ForbiddenError('No access to this attachment');
             }
 
-            // Generate presigned download URL (valid for 1 hour)
-            const downloadUrl = await minioService.generateDownloadUrl(
-                config.minio.buckets.attachments,
-                attachment.minio_path,
-                3600
-            );
+            // Return public download URL (bypasses API Gateway auth)
+            const downloadUrl = `http://localhost:3000/public/attachments/${id}/download`;
 
             res.json({
                 id: attachment.id,
@@ -246,6 +242,88 @@ router.get('/:id',
                 expiresIn: 3600
             });
         } catch (err) {
+            next(err);
+        }
+    }
+);
+
+/**
+ * GET /attachments/:id/download - Download attachment file (proxy)
+ */
+router.get('/:id/download',
+    async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const token = req.query.token || req.headers.authorization?.replace('Bearer ', '');
+
+            console.log('Download request:', {
+                id,
+                hasToken: !!token,
+                tokenLength: token?.length,
+                query: req.query,
+                headers: req.headers.authorization
+            });
+
+            if (!token) {
+                console.log('No token provided');
+                throw new UnauthorizedError('No authentication token provided');
+            }
+
+            // Verify token
+            let userId;
+            try {
+                console.log('Verifying token with auth service...');
+                const response = await fetch(`${config.auth.serviceUrl}/api/v1/auth/verify`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                console.log('Auth service response:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.log('Auth service error:', errorText);
+                    throw new UnauthorizedError('Invalid token');
+                }
+                
+                const data = await response.json();
+                userId = data.user_id;
+                console.log('Token verified for user:', userId);
+            } catch (error) {
+                console.error('Token verification failed:', error);
+                throw new UnauthorizedError('Token verification failed');
+            }
+
+            const attachment = await attachmentRepository.getById(id);
+            if (!attachment) {
+                throw new NotFoundError('Attachment not found');
+            }
+
+            // Check access
+            const hasAccess = await attachmentRepository.checkAccess(id, userId);
+            if (!hasAccess) {
+                throw new ForbiddenError('No access to this attachment');
+            }
+
+            console.log('Downloading file from MinIO:', attachment.minio_path);
+
+            // Download from MinIO
+            const fileBuffer = await minioService.download(
+                config.minio.buckets.attachments,
+                attachment.minio_path
+            );
+
+            console.log('File downloaded, size:', fileBuffer.length);
+
+            // Set headers
+            res.setHeader('Content-Type', attachment.content_type || 'application/octet-stream');
+            res.setHeader('Content-Length', fileBuffer.length);
+            res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(attachment.filename)}"`);
+            res.setHeader('Cache-Control', 'private, max-age=3600');
+
+            // Send file
+            res.send(fileBuffer);
+        } catch (err) {
+            console.error('Download error:', err);
             next(err);
         }
     }

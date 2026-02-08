@@ -551,28 +551,17 @@ router.get('/:id/attachments',
 
             const attachments = await attachmentRepository.getByDocumentId(id);
 
-            // Generate download URLs for all attachments
-            const attachmentsWithUrls = await Promise.all(
-                attachments.map(async (attachment) => {
-                    const downloadUrl = await minioService.generateDownloadUrl(
-                        config.minio.buckets.attachments,
-                        attachment.minio_path,
-                        3600
-                    );
-
-                    return {
-                        id: attachment.id,
-                        documentId: attachment.document_id,
-                        filename: attachment.filename,
-                        contentType: attachment.content_type,
-                        size: attachment.size_bytes,
-                        uploadedBy: attachment.uploaded_by,
-                        createdAt: attachment.created_at,
-                        downloadUrl,
-                        expiresIn: 3600
-                    };
-                })
-            );
+            // Generate public download URLs for all attachments
+            const attachmentsWithUrls = attachments.map((attachment) => ({
+                id: attachment.id,
+                documentId: attachment.document_id,
+                filename: attachment.filename,
+                contentType: attachment.content_type,
+                size_bytes: attachment.size_bytes,
+                uploadedBy: attachment.uploaded_by,
+                created_at: attachment.created_at,
+                downloadUrl: `http://localhost:3000/public/attachments/${attachment.id}/download`,
+            }));
 
             res.json({ attachments: attachmentsWithUrls });
         } catch (err) {

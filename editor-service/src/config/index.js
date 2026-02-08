@@ -36,6 +36,7 @@ export const config = {
     auth: {
         serviceUrl: process.env.AUTH_SERVICE_URL || 'http://localhost:8080',
         tokenCacheTTL: parseInt(process.env.AUTH_TOKEN_CACHE_TTL || '60'),
+        jwtSecret: process.env.JWT_SECRET,
     },
 
     snapshot: {
