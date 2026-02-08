@@ -30,7 +30,7 @@ export class AttachmentRepository {
      */
     async getByDocumentId(documentId) {
         const result = await pool.query(
-            `SELECT id, document_id, filename, content_type, size_bytes, 
+            `SELECT id, document_id, filename, minio_path, content_type, size_bytes, 
                     uploaded_by, created_at
              FROM attachments
              WHERE document_id = $1
