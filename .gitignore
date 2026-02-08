@@ -47,3 +47,5 @@ gen/
 generated/
 mock/
 mocks/
+
+node_modules/
