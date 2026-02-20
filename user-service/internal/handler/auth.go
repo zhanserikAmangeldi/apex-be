@@ -2,13 +2,14 @@ package handler
 
 import (
 	"errors"
-	"fmt"
+	"log"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
+
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/dto"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/middleware"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/service"
-	"log"
-	"net/http"
 )
 
 type AuthHandler struct {
@@ -19,105 +20,89 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 	return &AuthHandler{authService: authService}
 }
 
+// Register godoc
 // @Summary Register a new user
-// @Description Register a new user with username, email, and password
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param input body dto.RegisterUserRequest true "Register User Request"
+// @Param request body dto.RegisterRequest true "Registration data"
 // @Success 201 {object} dto.AuthResponse
 // @Failure 400 {object} dto.ErrorResponse
-// @Failure 401 {object} dto.ErrorResponse
-// @Failure 500 {object} dto.ErrorResponse
-// @Router /auth/register [post]
+// @Failure 409 {object} dto.ErrorResponse
+// @Router /api/v1/auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
-	var req dto.RegisterUserRequest
+	var req dto.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
-			Error:   "validation_error",
-			Message: err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("validation_error", err.Error()))
 		return
 	}
 
 	userAgent, ipAddress := getClientInfo(c)
 	authResp, err := h.authService.Register(c.Request.Context(), &req, userAgent, ipAddress)
-	log.Println(err)
 	if err != nil {
-		if errors.Is(err, service.ErrAlreadyUserExists) {
-			c.JSON(http.StatusUnauthorized, dto.ErrorResponse{
-				Error:   "user_exists",
-				Message: "User with this email or username already exists",
-			})
+		if errors.Is(err, service.ErrUserAlreadyExists) {
+			c.JSON(http.StatusConflict, dto.NewErrorResponseWithCode(
+				"user_exists",
+				"User with this email or username already exists",
+				"USER_EXISTS",
+			))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-			Error:   "internal_server",
-			Message: fmt.Sprintf("Failed to register user with error: %v\"", err),
-		})
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse("internal_error", "Failed to register user"))
 		return
 	}
 
 	c.JSON(http.StatusCreated, authResp)
 }
 
-// @Summary Login
-// @Description Login with username/email and password
+// Login godoc
+// @Summary Login user
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param input body dto.LoginRequest true "Login Request"
+// @Param request body dto.LoginRequest true "Login credentials"
 // @Success 200 {object} dto.AuthResponse
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
-// @Failure 500 {object} dto.ErrorResponse
-// @Router /auth/login [post]
+// @Router /api/v1/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
-			Error:   "validation_error",
-			Message: err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("validation_error", err.Error()))
 		return
 	}
-	userAgent, ip := getClientInfo(c)
-	authResp, err := h.authService.Login(c.Request.Context(), &req, userAgent, ip)
+
+	userAgent, ipAddress := getClientInfo(c)
+	authResp, err := h.authService.Login(c.Request.Context(), &req, userAgent, ipAddress)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
-			c.JSON(http.StatusUnauthorized, dto.ErrorResponse{
-				Error:   "invalid_credentials",
-				Message: "Invalid email/username or password",
-			})
+			c.JSON(http.StatusUnauthorized, dto.NewErrorResponse(
+				"invalid_credentials",
+				"Invalid email/username or password",
+			))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-			Error:   "internal_error",
-			Message: "Failed to login",
-		})
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse("internal_error", "Failed to login"))
 		return
 	}
 
 	c.JSON(http.StatusOK, authResp)
 }
 
-// @Summary Google Login
-// @Description Login with Google OAuth code
+// GoogleLogin godoc
+// @Summary Login with Google OAuth
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param input body dto.GoogleLoginRequest true "Google Login Request"
+// @Param request body dto.GoogleLoginRequest true "Google OAuth code"
 // @Success 200 {object} dto.AuthResponse
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 500 {object} dto.ErrorResponse
-// @Router /auth/google [post]
+// @Router /api/v1/auth/google [post]
 func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 	var req dto.GoogleLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
-			Error:   "validation_error",
-			Message: err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("validation_error", err.Error()))
 		return
 	}
 
@@ -125,113 +110,134 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 	authResp, err := h.authService.GoogleLogin(c.Request.Context(), req.Code, userAgent, ip)
 	if err != nil {
 		log.Printf("GoogleLogin error: %v", err)
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-			Error:   "internal_error",
-			Message: err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse("internal_error", err.Error()))
 		return
 	}
 
 	c.JSON(http.StatusOK, authResp)
 }
 
-// @Summary Logout
-// @Description Logout current session
+// GithubLogin godoc
+// @Summary Login with GitHub OAuth
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param input body dto.TokensRequest true "Logout Request"
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} dto.ErrorResponse
-// @Failure 500 {object} dto.ErrorResponse
-// @Router /auth/logout [post]
-func (h *AuthHandler) Logout(c *gin.Context) {
-	var req dto.TokensRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
-			Error:   "validation_error",
-			Message: err.Error(),
-		})
-		return
-	}
-
-	err := h.authService.Logout(c.Request.Context(), req.RefreshToken, req.AccessToken)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-			Error:   "internal_server",
-			Message: "Failed to logout",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Logged out successfully",
-	})
-}
-
-// @Summary Refresh Token
-// @Description Refresh access token using refresh token
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param input body dto.RefreshTokenRequest true "Refresh Token Request"
+// @Param request body dto.GithubLoginRequest true "GitHub OAuth code"
 // @Success 200 {object} dto.AuthResponse
 // @Failure 400 {object} dto.ErrorResponse
-// @Failure 401 {object} dto.ErrorResponse
-// @Router /auth/refresh [post]
-func (h *AuthHandler) RefreshToken(c *gin.Context) {
-	var req dto.RefreshTokenRequest
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/auth/github [post]
+func (h *AuthHandler) GithubLogin(c *gin.Context) {
+	var req dto.GithubLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
-			Error:   "validation_error",
-			Message: err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("validation_error", err.Error()))
 		return
 	}
 
 	userAgent, ip := getClientInfo(c)
-	authResp, err := h.authService.RefreshToken(c.Request.Context(), req.RefreshToken, userAgent, ip)
+	authResp, err := h.authService.GithubLogin(c.Request.Context(), req.Code, userAgent, ip)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{
-			Error:   "invalid_token",
-			Message: err.Error(),
-		})
+		log.Printf("GithubLogin error: %v", err)
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse("internal_error", err.Error()))
 		return
 	}
 
 	c.JSON(http.StatusOK, authResp)
 }
 
-func (h *AuthHandler) LogoutAll(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-	fmt.Println(userID)
-	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{
-			Error: "unauthorized",
-		})
+// Logout godoc
+// @Summary Logout user
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.LogoutRequest true "Tokens to revoke"
+// @Success 200 {object} dto.SuccessResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Router /api/v1/auth/logout [post]
+func (h *AuthHandler) Logout(c *gin.Context) {
+	var req dto.LogoutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("validation_error", err.Error()))
 		return
 	}
 
-	err := h.authService.LogoutAll(c.Request.Context(), userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-			Error:   "internal_error",
-			Message: "Failed to logout from all devices",
-		})
+	if err := h.authService.Logout(c.Request.Context(), req.RefreshToken, req.AccessToken); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse("internal_error", "Failed to logout"))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Logged out from all devices successfully",
-	})
+	c.JSON(http.StatusOK, dto.SuccessResponse{Message: "Logged out successfully"})
 }
 
+// RefreshToken godoc
+// @Summary Refresh access token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.RefreshTokenRequest true "Refresh token"
+// @Success 200 {object} dto.AuthResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /api/v1/auth/refresh [post]
+func (h *AuthHandler) RefreshToken(c *gin.Context) {
+	var req dto.RefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("validation_error", err.Error()))
+		return
+	}
+
+	userAgent, ipAddress := getClientInfo(c)
+	authResp, err := h.authService.RefreshToken(c.Request.Context(), req.RefreshToken, userAgent, ipAddress)
+	if err != nil {
+		status := http.StatusUnauthorized
+		code := "INVALID_TOKEN"
+
+		if errors.Is(err, service.ErrTokenExpired) {
+			code = "TOKEN_EXPIRED"
+		} else if errors.Is(err, service.ErrSessionRevoked) {
+			code = "SESSION_REVOKED"
+		}
+
+		c.JSON(status, dto.NewErrorResponseWithCode("invalid_token", err.Error(), code))
+		return
+	}
+
+	c.JSON(http.StatusOK, authResp)
+}
+
+// LogoutAll godoc
+// @Summary Logout from all devices
+// @Tags auth
+// @Security BearerAuth
+// @Success 200 {object} dto.SuccessResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /api/v1/auth/logout-all [post]
+func (h *AuthHandler) LogoutAll(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, dto.NewErrorResponse("unauthorized", ""))
+		return
+	}
+
+	if err := h.authService.LogoutAll(c.Request.Context(), userID); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse("internal_error", "Failed to logout from all devices"))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.SuccessResponse{Message: "Logged out from all devices successfully"})
+}
+
+// GetActiveSessions godoc
+// @Summary Get all active sessions
+// @Tags auth
+// @Security BearerAuth
+// @Param current_token query string false "Current refresh token to mark current session"
+// @Success 200 {object} models.SessionListResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /api/v1/auth/sessions [get]
 func (h *AuthHandler) GetActiveSessions(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{
-			Error: "unauthorized",
-		})
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, dto.NewErrorResponse("unauthorized", ""))
 		return
 	}
 
@@ -239,28 +245,68 @@ func (h *AuthHandler) GetActiveSessions(c *gin.Context) {
 
 	sessions, err := h.authService.GetActiveSessions(c.Request.Context(), userID, currentRefreshToken)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-			Error: "internal_error",
-		})
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse("internal_error", "Failed to get sessions"))
 		return
 	}
 
 	c.JSON(http.StatusOK, sessions)
 }
 
+// VerifyEmail godoc
+// @Summary Verify email address
+// @Tags auth
+// @Param token query string true "Verification token"
+// @Success 200 {object} dto.SuccessResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Router /verify-email [get]
+func (h *AuthHandler) VerifyEmail(c *gin.Context) {
+	token := c.Query("token")
+	if token == "" {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("validation_error", "Token is required"))
+		return
+	}
+
+	if err := h.authService.VerifyEmail(c.Request.Context(), token); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("verification_failed", err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.SuccessResponse{Message: "Email verified successfully"})
+}
+
+// ResendVerificationEmail godoc
+// @Summary Resend verification email
+// @Tags auth
+// @Security BearerAuth
+// @Success 200 {object} dto.SuccessResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /api/v1/auth/resend-verification [post]
+func (h *AuthHandler) ResendVerificationEmail(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, dto.NewErrorResponse("unauthorized", ""))
+		return
+	}
+
+	if err := h.authService.ResendVerificationEmail(c.Request.Context(), userID); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("resend_failed", err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.SuccessResponse{Message: "Verification email sent"})
+}
+
 func getClientInfo(c *gin.Context) (*string, *string) {
 	userAgent := c.Request.UserAgent()
 	ip := c.ClientIP()
 
-	var userAgentStr *string
-	var ipPtr *string
-
+	var userAgentPtr, ipPtr *string
 	if userAgent != "" {
-		userAgentStr = &userAgent
+		userAgentPtr = &userAgent
 	}
 	if ip != "" {
 		ipPtr = &ip
 	}
 
-	return userAgentStr, ipPtr
+	return userAgentPtr, ipPtr
 }

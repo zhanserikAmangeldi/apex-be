@@ -6,13 +6,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/models"
 )
 
-var ErrUserNotFound = errors.New("user not found")
-var ErrUserAlreadyExists = errors.New("user already exists")
+var (
+	ErrUserNotFound      = errors.New("user not found")
+	ErrUserAlreadyExists = errors.New("user already exists")
+)
 
 type UserRepository struct {
 	db *pgxpool.Pool
@@ -45,13 +48,14 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	}
 
 	user.Status = "offline"
+	user.IsVerified = false
 	return nil
 }
 
-func (r *UserRepository) GetByID(ctx context.Context, id int64) (*models.User, error) {
+func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
 		SELECT id, username, email, password_hash, display_name, avatar_url, 
-		       bio, status, last_seen_at, created_at, updated_at
+		       bio, status, is_verified, last_seen_at, created_at, updated_at
 		FROM users
 		WHERE id = $1 AND deleted_at IS NULL
 	`
@@ -66,6 +70,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*models.User, e
 		&user.AvatarURL,
 		&user.Bio,
 		&user.Status,
+		&user.IsVerified,
 		&user.LastSeenAt,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -84,7 +89,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*models.User, e
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
 		SELECT id, username, email, password_hash, display_name, avatar_url,
-		       bio, status, last_seen_at, created_at, updated_at
+		       bio, status, is_verified, last_seen_at, created_at, updated_at
 		FROM users
 		WHERE email = $1 AND deleted_at IS NULL
 	`
@@ -99,6 +104,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		&user.AvatarURL,
 		&user.Bio,
 		&user.Status,
+		&user.IsVerified,
 		&user.LastSeenAt,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -117,7 +123,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*models.User, error) {
 	query := `
 		SELECT id, username, email, password_hash, display_name, avatar_url,
-		       bio, status, last_seen_at, created_at, updated_at
+		       bio, status, is_verified, last_seen_at, created_at, updated_at
 		FROM users
 		WHERE username = $1 AND deleted_at IS NULL
 	`
@@ -132,6 +138,7 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*m
 		&user.AvatarURL,
 		&user.Bio,
 		&user.Status,
+		&user.IsVerified,
 		&user.LastSeenAt,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -145,25 +152,6 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*m
 	}
 
 	return user, nil
-}
-
-func (r *UserRepository) GetAvatarURL(ctx context.Context, userID int64) (string, error) {
-	query := `
-		SELECT avatar_url
-		FROM users
-		WHERE id = $1 AND deleted_at IS NULL
-	`
-
-	var avatarURL string
-	err := r.db.QueryRow(ctx, query, userID).Scan(&avatarURL)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return "", ErrUserNotFound
-		}
-		return "", err
-	}
-
-	return avatarURL, nil
 }
 
 func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
@@ -191,37 +179,48 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	return nil
 }
 
-func (r *UserRepository) UpdateAvatar(ctx context.Context, userID int64, objectName string) error {
+func (r *UserRepository) UpdateAvatar(ctx context.Context, userID uuid.UUID, avatarURL string) error {
 	query := `
 		UPDATE users
 		SET avatar_url = $2, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $1 AND deleted_at IS NULL
-		RETURNING updated_at
 	`
-	user, err := r.GetByID(ctx, userID)
+
+	result, err := r.db.Exec(ctx, query, userID, avatarURL)
 	if err != nil {
 		return err
 	}
 
-	err = r.db.QueryRow(ctx, query,
-		userID,
-		objectName,
-	).Scan(&user.UpdatedAt)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrUserNotFound
-		}
-		return err
+	if result.RowsAffected() == 0 {
+		return ErrUserNotFound
 	}
 
 	return nil
 }
 
-func (r *UserRepository) UpdateLastSeen(ctx context.Context, userID int64) error {
+func (r *UserRepository) GetAvatarURL(ctx context.Context, userID uuid.UUID) (string, error) {
+	query := `
+		SELECT COALESCE(avatar_url, '')
+		FROM users
+		WHERE id = $1 AND deleted_at IS NULL
+	`
+
+	var avatarURL string
+	err := r.db.QueryRow(ctx, query, userID).Scan(&avatarURL)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrUserNotFound
+		}
+		return "", err
+	}
+
+	return avatarURL, nil
+}
+
+func (r *UserRepository) UpdateLastSeen(ctx context.Context, userID uuid.UUID) error {
 	query := `
 		UPDATE users
-		SET last_seen_at = $2
+		SET last_seen_at = $2, status = 'online'
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
@@ -229,12 +228,47 @@ func (r *UserRepository) UpdateLastSeen(ctx context.Context, userID int64) error
 	return err
 }
 
-func (r *UserRepository) MarkVerified(ctx context.Context, userID int64) error {
+func (r *UserRepository) MarkVerified(ctx context.Context, userID uuid.UUID) error {
 	query := `
 		UPDATE users
-		SET is_verified = TRUE, updated_at = NOW()
+		SET is_verified = TRUE, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $1
 	`
 	_, err := r.db.Exec(ctx, query, userID)
 	return err
+}
+
+func (r *UserRepository) Delete(ctx context.Context, userID uuid.UUID) error {
+	query := `
+		UPDATE users
+		SET deleted_at = CURRENT_TIMESTAMP
+		WHERE id = $1 AND deleted_at IS NULL
+	`
+
+	result, err := r.db.Exec(ctx, query, userID)
+	if err != nil {
+		return err
+	}
+
+	if result.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+
+	return nil
+}
+
+func (r *UserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND deleted_at IS NULL)`
+
+	var exists bool
+	err := r.db.QueryRow(ctx, query, email).Scan(&exists)
+	return exists, err
+}
+
+func (r *UserRepository) ExistsByUsername(ctx context.Context, username string) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM users WHERE username = $1 AND deleted_at IS NULL)`
+
+	var exists bool
+	err := r.db.QueryRow(ctx, query, username).Scan(&exists)
+	return exists, err
 }
