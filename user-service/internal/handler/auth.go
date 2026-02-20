@@ -19,6 +19,17 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 	return &AuthHandler{authService: authService}
 }
 
+// @Summary Register a new user
+// @Description Register a new user with username, email, and password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param input body dto.RegisterUserRequest true "Register User Request"
+// @Success 201 {object} dto.AuthResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req dto.RegisterUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -50,6 +61,17 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, authResp)
 }
 
+// @Summary Login
+// @Description Login with username/email and password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param input body dto.LoginRequest true "Login Request"
+// @Success 200 {object} dto.AuthResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -79,6 +101,50 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, authResp)
 }
 
+// @Summary Google Login
+// @Description Login with Google OAuth code
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param input body dto.GoogleLoginRequest true "Google Login Request"
+// @Success 200 {object} dto.AuthResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /auth/google [post]
+func (h *AuthHandler) GoogleLogin(c *gin.Context) {
+	var req dto.GoogleLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Error:   "validation_error",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	userAgent, ip := getClientInfo(c)
+	authResp, err := h.authService.GoogleLogin(c.Request.Context(), req.Code, userAgent, ip)
+	if err != nil {
+		log.Printf("GoogleLogin error: %v", err)
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Error:   "internal_error",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, authResp)
+}
+
+// @Summary Logout
+// @Description Logout current session
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param input body dto.TokensRequest true "Logout Request"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req dto.TokensRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -103,6 +169,16 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	})
 }
 
+// @Summary Refresh Token
+// @Description Refresh access token using refresh token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param input body dto.RefreshTokenRequest true "Refresh Token Request"
+// @Success 200 {object} dto.AuthResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /auth/refresh [post]
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req dto.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

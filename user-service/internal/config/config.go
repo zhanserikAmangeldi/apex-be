@@ -23,9 +23,14 @@ type Config struct {
 	SMTPFrom     string
 	MinioHost    string
 	MinioApiPort string
-	MinioUser    string
-	MinioPass    string
-	JWTSecret    string
+	MinioUser               string
+	MinioPass               string
+	JWTSecret               string
+	GoogleOAuthClientID     string
+	GoogleOAuthClientSecret string
+	GoogleOAuthRedirectURI  string
+	GithubOAuthClientID     string
+	GithubOAuthClientSecret string
 }
 
 func LoadConfig() *Config {
@@ -42,12 +47,17 @@ func LoadConfig() *Config {
 		SMTPPort:     getEnvInt("SMTP_PORT", 587),
 		SMTPUser:     getEnv("SMTP_USER", "user-service@gmail.com"),
 		SMPTPass:     getEnv("SMTP_PASSWORD", "smtp-service"),
-		SMTPFrom:     getEnv("SMTP_FROM", "<nonreplay>@example.com"),
-		MinioHost:    getEnv("MINIO_HOST", "localhost"),
-		MinioApiPort: getEnv("MINIO_API_PORT", "9000"),
-		MinioUser:    getEnv("MINIO_USER", "admin"),
-		MinioPass:    getEnv("MINIO_PASS", "admin123"),
-		JWTSecret:    getEnv("JWT_SECRET", "user-service-secret-word"),
+		SMTPFrom:               getEnv("SMTP_FROM", "<nonreplay>@example.com"),
+		MinioHost:              getEnv("MINIO_HOST", "localhost"),
+		MinioApiPort:           getEnv("MINIO_API_PORT", "9000"),
+		MinioUser:              getEnv("MINIO_USER", "admin"),
+		MinioPass:              getEnv("MINIO_PASS", "admin123"),
+		JWTSecret:              getEnv("JWT_SECRET", "user-service-secret-word"),
+		GoogleOAuthClientID:    getEnv("GOOGLE_OAUTH_CLIENT_ID", ""),
+		GoogleOAuthClientSecret: getEnv("GOOGLE_OAUTH_CLIENT_SECRET", ""),
+		GoogleOAuthRedirectURI: getEnv("GOOGLE_OAUTH_REDIRECT_URI", ""),
+		GithubOAuthClientID:    getEnv("GITHUB_OAUTH_CLIENT_ID", ""),
+		GithubOAuthClientSecret: getEnv("GITHUB_OAUTH_CLIENT_SECRET", ""),
 	}
 
 	cfg.DBUrl = cfg.getDBUrl()

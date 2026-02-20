@@ -2,6 +2,12 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"golang.org/x/oauth2/github"
+	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/config"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -183,6 +189,299 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest, userAgen
 		ExpiresIn:    int64(time.Until(expiresAt).Seconds()),
 		User:         user,
 	}, nil
+}
+
+func (s *AuthService) GoogleLogin(ctx context.Context, code string, userAgent, ipAddress *string) (*dto.AuthResponse, error) {
+	// 1. Exchange code for token
+	token, err := s.exchangeGoogleCode(ctx, code)
+	if err != nil {
+		return nil, fmt.Errorf("failed to exchange token: %w", err)
+	}
+
+	// 2. Get user info from Google
+	googleUser, err := s.getGoogleUserInfo(ctx, token.AccessToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user info: %w", err)
+	}
+
+	// 3. Find or create user
+	user, err := s.userRepo.GetByEmail(ctx, googleUser.Email)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			// Create new user
+			// We generate a random password since they are logging in via Google
+			randomPassword, _ := s.generateVerificationToken() // Re-using random string generator
+			hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(randomPassword), bcrypt.DefaultCost)
+			
+			newUser := &models.User{
+				Username:     strings.Split(googleUser.Email, "@")[0], // Basic username attempt
+				Email:        googleUser.Email,
+				PasswordHash: string(hashedPassword),
+			}
+			
+			// If username exists, append random suffix
+			if _, err := s.userRepo.GetByUsername(ctx, newUser.Username); err == nil {
+				newUser.Username = fmt.Sprintf("%s_%s", newUser.Username, randomPassword[:4])
+			}
+
+			if err := s.userRepo.Create(ctx, newUser); err != nil {
+				return nil, fmt.Errorf("failed to create user: %w", err)
+			}
+			if err := s.userRepo.MarkVerified(ctx, newUser.ID); err != nil {
+				return nil, fmt.Errorf("failed to verify user: %w", err)
+			}
+			user = newUser
+		} else {
+			return nil, err
+		}
+	}
+
+	// 4. Generate Tokens
+	accessToken, expiresAt, err := s.tokenManager.GenerateAccessToken(user.ID, user.Username, user.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	refreshToken, refreshExpiresAt, err := s.tokenManager.GenerateRefreshToken(user.ID, user.Username, user.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	session := &repository.Session{
+		UserID:       user.ID,
+		RefreshToken: refreshToken,
+		AccessToken:  accessToken,
+		UserAgent:    userAgent,
+		IPAddress:    ipAddress,
+		ExpiresAt:    refreshExpiresAt,
+	}
+
+	if err := s.sessionRepo.Create(ctx, session); err != nil {
+		return nil, err
+	}
+
+	_ = s.userRepo.UpdateLastSeen(ctx, user.ID)
+
+	return &dto.AuthResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    int64(time.Until(expiresAt).Seconds()),
+		User:         user,
+	}, nil
+}
+
+func (s *AuthService) GithubLogin(ctx context.Context, code string, userAgent, ipAddress *string) (*dto.AuthResponse, error) {
+	// 1. Exchange code for token
+	token, err := s.exchangeGithubCode(ctx, code)
+	if err != nil {
+		return nil, fmt.Errorf("failed to exchange token: %w", err)
+	}
+
+	// 2. Get user info from GitHub
+	githubUser, err := s.getGithubUserInfo(ctx, token.AccessToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user info: %w", err)
+	}
+
+	if githubUser.Email == "" {
+		return nil, errors.New("email is required but not provided by GitHub")
+	}
+
+	// 3. Find or create user
+	user, err := s.userRepo.GetByEmail(ctx, githubUser.Email)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			// Create new user
+			randomPassword, _ := s.generateVerificationToken()
+			hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(randomPassword), bcrypt.DefaultCost)
+
+			newUser := &models.User{
+				Username:     githubUser.Login,
+				Email:        githubUser.Email,
+				PasswordHash: string(hashedPassword),
+			}
+			
+			if githubUser.Name != "" {
+				newUser.DisplayName = &githubUser.Name
+			}
+
+			// If username exists, append random suffix
+			if _, err := s.userRepo.GetByUsername(ctx, newUser.Username); err == nil {
+				newUser.Username = fmt.Sprintf("%s_%s", newUser.Username, randomPassword[:4])
+			}
+
+			if err := s.userRepo.Create(ctx, newUser); err != nil {
+				return nil, fmt.Errorf("failed to create user: %w", err)
+			}
+			if err := s.userRepo.MarkVerified(ctx, newUser.ID); err != nil {
+				return nil, fmt.Errorf("failed to verify user: %w", err)
+			}
+			user = newUser
+		} else {
+			return nil, err
+		}
+	}
+
+	// 4. Generate Tokens
+	accessToken, expiresAt, err := s.tokenManager.GenerateAccessToken(user.ID, user.Username, user.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	refreshToken, refreshExpiresAt, err := s.tokenManager.GenerateRefreshToken(user.ID, user.Username, user.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	session := &repository.Session{
+		UserID:       user.ID,
+		RefreshToken: refreshToken,
+		AccessToken:  accessToken,
+		UserAgent:    userAgent,
+		IPAddress:    ipAddress,
+		ExpiresAt:    refreshExpiresAt,
+	}
+
+	if err := s.sessionRepo.Create(ctx, session); err != nil {
+		return nil, err
+	}
+
+	_ = s.userRepo.UpdateLastSeen(ctx, user.ID)
+
+	return &dto.AuthResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    int64(time.Until(expiresAt).Seconds()),
+		User:         user,
+	}, nil
+}
+
+type GithubUserInfo struct {
+	Login string `json:"login"`
+	Email string `json:"email"`
+	Name  string `json:"name"`
+}
+
+type GithubEmail struct {
+	Email    string `json:"email"`
+	Primary  bool   `json:"primary"`
+	Verified bool   `json:"verified"`
+}
+
+func (s *AuthService) exchangeGithubCode(ctx context.Context, code string) (*oauth2.Token, error) {
+	cfg := config.LoadConfig()
+	conf := &oauth2.Config{
+		ClientID:     cfg.GithubOAuthClientID,
+		ClientSecret: cfg.GithubOAuthClientSecret,
+		RedirectURL:  "", // GitHub doesn't strictly need RedirectURL on exchange if it was correct in frontend, but omitting is safer if not configured
+		Endpoint:     github.Endpoint,
+	}
+	return conf.Exchange(ctx, code)
+}
+
+func (s *AuthService) getGithubUserInfo(ctx context.Context, accessToken string) (*GithubUserInfo, error) {
+	// Get basic info
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get user info: status code %d", resp.StatusCode)
+	}
+
+	var userInfo GithubUserInfo
+	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
+		return nil, err
+	}
+
+	// If email is empty, fetch emails
+	if userInfo.Email == "" {
+		req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user/emails", nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+		
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err // tolerate error? better to fail if we need email
+		}
+		defer resp.Body.Close()
+		
+		if resp.StatusCode == http.StatusOK {
+			var emails []GithubEmail
+			if err := json.NewDecoder(resp.Body).Decode(&emails); err == nil {
+				for _, e := range emails {
+					if e.Primary && e.Verified {
+						userInfo.Email = e.Email
+						break
+					}
+				}
+				// If no primary verified found, take any verified
+				if userInfo.Email == "" {
+					for _, e := range emails {
+						if e.Verified {
+							userInfo.Email = e.Email
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return &userInfo, nil
+}
+
+type GoogleUserInfo struct {
+	ID            string `json:"id"`
+	Email         string `json:"email"`
+	VerifiedEmail bool   `json:"verified_email"`
+	Name          string `json:"name"`
+	GivenName     string `json:"given_name"`
+	FamilyName    string `json:"family_name"`
+	Picture       string `json:"picture"`
+}
+
+func (s *AuthService) exchangeGoogleCode(ctx context.Context, code string) (*oauth2.Token, error) {
+	cfg := config.LoadConfig()
+	conf := &oauth2.Config{
+		ClientID:     cfg.GoogleOAuthClientID,
+		ClientSecret: cfg.GoogleOAuthClientSecret,
+		RedirectURL:  cfg.GoogleOAuthRedirectURI,
+		Scopes: []string{
+			"https://www.googleapis.com/auth/userinfo.email",
+			"https://www.googleapis.com/auth/userinfo.profile",
+		},
+		Endpoint: google.Endpoint,
+	}
+	return conf.Exchange(ctx, code)
+}
+
+func (s *AuthService) getGoogleUserInfo(ctx context.Context, accessToken string) (*GoogleUserInfo, error) {
+	resp, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + accessToken)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get user info: status code %d", resp.StatusCode)
+	}
+
+	var userInfo GoogleUserInfo
+	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
+		return nil, err
+	}
+	return &userInfo, nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, refreshToken, accessToken string) error {

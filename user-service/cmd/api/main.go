@@ -13,6 +13,9 @@ import (
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/repository"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/service"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/pkg/jwt"
+	_ "github.com/zhanserikAmangeldi/apex-be/user-service/docs"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -22,6 +25,25 @@ import (
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/config"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/migration"
 )
+
+// @title           User Service API
+// @version         1.0
+// @description     API Server for User Service
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name   API Support
+// @contact.url    http://www.swagger.io/support
+// @contact.email  support@swagger.io
+
+// @license.name  Apache 2.0
+// @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host      localhost:8080
+// @BasePath  /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 
 func main() {
 	cfg := config.LoadConfig()
@@ -91,6 +113,8 @@ func main() {
 		AllowCredentials: true,
 	}))
 
+	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":   "healthy",
@@ -109,6 +133,8 @@ func main() {
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/logout", authHandler.Logout)
 			auth.POST("/refresh", authHandler.RefreshToken)
+			auth.POST("/google", authHandler.GoogleLogin)
+			auth.POST("/github", authHandler.GithubLogin)
 		}
 	}
 
