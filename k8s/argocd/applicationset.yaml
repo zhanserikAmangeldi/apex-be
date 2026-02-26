@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apex-environments
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - env: dev
+            branch: develop
+            namespace: apex-dev
+            autoSync: "true"
+          - env: prod
+            branch: main
+            namespace: apex-prod
+            autoSync: "false"
+  template:
+    metadata:
+      name: 'apex-{{env}}'
+      namespace: argocd
+      labels:
+        app.kubernetes.io/part-of: apex
+        environment: '{{env}}'
+    spec:
+      project: apex
+      source:
+        repoURL: https://github.com/zhanserikAmangeldi/apex-be.git
+        targetRevision: '{{branch}}'
+        path: 'k8s/overlays/{{env}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
+          - PrunePropagationPolicy=foreground

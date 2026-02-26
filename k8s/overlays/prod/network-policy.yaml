@@ -1,0 +1,216 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: apex
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-gateway
+  namespace: apex
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from: []
+      ports:
+        - port: 8000
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: user-service
+      ports:
+        - port: 8080
+    - to:
+        - podSelector:
+            matchLabels:
+              app: editor-service
+      ports:
+        - port: 3000
+        - port: 1234
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ai-service
+      ports:
+        - port: 8090
+    # DNS
+    - to: []
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-user-service
+  namespace: apex
+spec:
+  podSelector:
+    matchLabels:
+      app: user-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - podSelector:
+            matchLabels:
+              app: editor-service
+      ports:
+        - port: 8080
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: user-postgres
+      ports:
+        - port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app: minio
+      ports:
+        - port: 9000
+    # DNS + SMTP
+    - to: []
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+        - port: 587
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-editor-service
+  namespace: apex
+spec:
+  podSelector:
+    matchLabels:
+      app: editor-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+      ports:
+        - port: 3000
+        - port: 1234
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: editor-postgres
+      ports:
+        - port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: minio
+      ports:
+        - port: 9000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: user-service
+      ports:
+        - port: 8080
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ai-service
+      ports:
+        - port: 8090
+    - to: []
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ai-service
+  namespace: apex
+spec:
+  podSelector:
+    matchLabels:
+      app: ai-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - podSelector:
+            matchLabels:
+              app: editor-service
+      ports:
+        - port: 8090
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ai-postgres
+      ports:
+        - port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: editor-service
+      ports:
+        - port: 3000
+    - to: []
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-databases
+  namespace: apex
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [user-postgres, editor-postgres, ai-postgres, redis, minio]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}

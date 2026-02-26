@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apex
+  namespace: argocd
+spec:
+  description: Apex collaborative editor platform
+  sourceRepos:
+    - 'https://github.com/zhanserikAmangeldi/apex-be.git'
+  destinations:
+    - namespace: apex
+      server: https://kubernetes.default.svc
+    - namespace: apex-dev
+      server: https://kubernetes.default.svc
+    - namespace: apex-prod
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: '*'
+    - group: apps
+      kind: '*'
+    - group: networking.k8s.io
+      kind: '*'
+    - group: autoscaling
+      kind: '*'
