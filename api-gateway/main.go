@@ -27,6 +27,7 @@ var (
 	authServiceURL   = getEnv("AUTH_SERVICE_URL", "http://localhost:8081")
 	editorServiceURL = getEnv("EDITOR_SERVICE_URL", "http://localhost:3000")
 	editorWSURL      = getEnv("EDITOR_WS_URL", "ws://localhost:1234")
+	aiServiceURL     = getEnv("AI_SERVICE_URL", "http://localhost:8090")
 )
 
 var jwtSecret []byte
@@ -143,6 +144,12 @@ func main() {
 		{
 			editor.Any("/*path", proxyRequest(editorServiceURL, 15*time.Second))
 		}
+
+		ai := api.Group("/ai-service")
+		ai.Use(authMiddleware())
+		{
+			ai.Any("/*path", proxyRequest(aiServiceURL, 30*time.Second))
+		}
 	}
 
 	go func() {
@@ -157,6 +164,7 @@ func main() {
 	log.Printf("   Auth Service: %s", authServiceURL)
 	log.Printf("   Editor Service: %s", editorServiceURL)
 	log.Printf("   Editor WebSocket: %s", editorWSURL)
+	log.Printf("   AI Service: %s", aiServiceURL)
 
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
@@ -449,6 +457,7 @@ func stripServicePrefix(path string) string {
 	prefixes := []string{
 		"/api/auth-service",
 		"/api/editor-service",
+		"/api/ai-service",
 	}
 
 	for _, prefix := range prefixes {
@@ -483,6 +492,7 @@ func readinessCheck(c *gin.Context) {
 	services := map[string]string{
 		"auth":   authServiceURL + "/health",
 		"editor": editorServiceURL + "/health",
+		"ai":     aiServiceURL + "/health",
 	}
 
 	results := make(map[string]interface{})

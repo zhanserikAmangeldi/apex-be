@@ -54,10 +54,26 @@ export class GraphRepository {
             [vaultId]
         );
 
+        // Also get updates for documents without snapshots
+        const updatesResult = await pool.query(
+            `SELECT cu.document_id, array_agg(cu.update_data ORDER BY cu.created_at) as updates
+             FROM crdt_updates cu
+             INNER JOIN documents d ON d.id = cu.document_id
+             WHERE d.vault_id = $1 AND d.is_deleted = false
+               AND cu.document_id NOT IN (
+                   SELECT cs.document_id FROM crdt_snapshots cs
+                   INNER JOIN documents d2 ON d2.id = cs.document_id
+                   WHERE d2.vault_id = $1
+               )
+             GROUP BY cu.document_id`,
+            [vaultId]
+        );
+
         return {
             documents: documentsResult.rows,
             tags: tagsResult.rows,
-            snapshots: linksResult.rows
+            snapshots: linksResult.rows,
+            updates: updatesResult.rows
         };
     }
 
@@ -76,6 +92,67 @@ export class GraphRepository {
             [vaultId]
         );
         return result.rows;
+    }
+    /**
+     * Get data needed to compute backlinks for a document
+     */
+    async getBacklinksData(documentId, userId) {
+        // Get the document and its vault
+        const docResult = await pool.query(
+            `SELECT id, title, vault_id FROM documents
+             WHERE id = $1 AND is_deleted = false
+               AND (owner_id::text = $2::text
+                    OR EXISTS (SELECT 1 FROM document_permissions WHERE document_id = $1 AND user_id::text = $2::text)
+                    OR EXISTS (SELECT 1 FROM vault_permissions vp
+                               INNER JOIN documents d2 ON d2.vault_id = vp.vault_id
+                               WHERE d2.id = $1 AND vp.user_id::text = $2::text))`,
+            [documentId, userId]
+        );
+
+        if (docResult.rows.length === 0) {
+            return { document: null, vaultDocuments: [], snapshots: [], updates: [] };
+        }
+
+        const doc = docResult.rows[0];
+        const vaultId = doc.vault_id;
+
+        // Get all documents in the same vault
+        const vaultDocsResult = await pool.query(
+            `SELECT id, title, icon FROM documents
+             WHERE vault_id = $1 AND is_deleted = false AND is_folder = false`,
+            [vaultId]
+        );
+
+        // Get snapshots
+        const snapshotsResult = await pool.query(
+            `SELECT cs.document_id, cs.snapshot
+             FROM crdt_snapshots cs
+             INNER JOIN documents d ON d.id = cs.document_id
+             WHERE d.vault_id = $1 AND d.is_deleted = false`,
+            [vaultId]
+        );
+
+        // Get updates for docs without snapshots
+        const updatesResult = await pool.query(
+            `SELECT cu.document_id, array_agg(cu.update_data ORDER BY cu.created_at) as updates
+             FROM crdt_updates cu
+             INNER JOIN documents d ON d.id = cu.document_id
+             WHERE d.vault_id = $1 AND d.is_deleted = false
+               AND cu.document_id NOT IN (
+                   SELECT cs.document_id FROM crdt_snapshots cs
+                   INNER JOIN documents d2 ON d2.id = cs.document_id
+                   WHERE d2.vault_id = $1
+               )
+             GROUP BY cu.document_id`,
+            [vaultId]
+        );
+
+        return {
+            document: doc,
+            vaultDocuments: vaultDocsResult.rows,
+            snapshots: snapshotsResult.rows,
+            updates: updatesResult.rows
+        };
     }
 }
 

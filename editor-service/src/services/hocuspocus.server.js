@@ -5,6 +5,7 @@ import { config } from '../config/index.js';
 import { authService } from './auth.service.js';
 import { crdtService } from './crdt.service.js';
 import { documentRepository, updatesRepository } from '../db/repositories/index.js';
+import { scheduleIndexing } from './ai-indexer.service.js';
 
 const pendingSnapshots = new Map();
 
@@ -129,8 +130,13 @@ export function createHocuspocusServer() {
             const documentId = documentName;
 
             try {
-                await updatesRepository.save(documentId, Buffer.from(state));
+                // state can be undefined in some Hocuspocus versions — encode from document
+                const docState = state || Y.encodeStateAsUpdate(document);
+                await updatesRepository.save(documentId, Buffer.from(docState));
                 console.log(`Stored update for ${documentId}`);
+
+                // Schedule AI indexing (debounced, non-blocking)
+                scheduleIndexing(documentId, document, null);
             } catch (err) {
                 console.error(`Failed to store document ${documentId}:`, err);
             }
