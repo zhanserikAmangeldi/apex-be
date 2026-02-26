@@ -1,34 +1,26 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: apex-prod
+  name: apex-local
   namespace: argocd
   labels:
     app.kubernetes.io/part-of: apex
-    environment: prod
+    environment: local
 spec:
   project: apex
   source:
     repoURL: https://github.com/zhanserikAmangeldi/apex-be.git
-    targetRevision: main
-    path: k8s/overlays/prod
+    targetRevision: HEAD
+    path: k8s/overlays/local
   destination:
     server: https://kubernetes.default.svc
-    namespace: apex-prod
+    namespace: apex
   syncPolicy:
-    # Prod: manual sync only
     syncOptions:
       - CreateNamespace=true
-      - PrunePropagationPolicy=foreground
-      - RespectIgnoreDifferences=true
     retry:
       limit: 3
       backoff:
         duration: 5s
         factor: 2
         maxDuration: 3m
-  ignoreDifferences:
-    - group: autoscaling
-      kind: HorizontalPodAutoscaler
-      jsonPointers:
-        - /status

@@ -6,30 +6,25 @@ metadata:
   labels:
     app.kubernetes.io/part-of: apex
     environment: dev
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
 spec:
   project: apex
   source:
     repoURL: https://github.com/zhanserikAmangeldi/apex-be.git
-    targetRevision: refact-refresh-token-http-only
-    path: k8s/overlays/local
+    targetRevision: develop
+    path: k8s/overlays/dev
   destination:
     server: https://kubernetes.default.svc
-    namespace: apex
+    namespace: apex-dev
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
       - PrunePropagationPolicy=foreground
-      - PruneLast=true
     retry:
       limit: 3
       backoff:
         duration: 5s
         factor: 2
         maxDuration: 3m
-  ignoreDifferences:
-    - group: autoscaling
-      kind: HorizontalPodAutoscaler
-      jsonPointers:
-        - /status

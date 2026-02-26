@@ -7,14 +7,18 @@ spec:
   generators:
     - list:
         elements:
+          - env: local
+            branch: HEAD
+            namespace: apex
+            overlay: local
           - env: dev
             branch: develop
             namespace: apex-dev
-            autoSync: "true"
+            overlay: dev
           - env: prod
             branch: main
             namespace: apex-prod
-            autoSync: "false"
+            overlay: prod
   template:
     metadata:
       name: 'apex-{{env}}'
@@ -27,7 +31,7 @@ spec:
       source:
         repoURL: https://github.com/zhanserikAmangeldi/apex-be.git
         targetRevision: '{{branch}}'
-        path: 'k8s/overlays/{{env}}'
+        path: 'k8s/overlays/{{overlay}}'
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'
