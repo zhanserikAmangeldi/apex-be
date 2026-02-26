@@ -29,7 +29,6 @@ router.post('/', authenticateToken, async (req, res, next) => {
             return res.status(400).json({ error: `Invalid connection type. Valid: ${VALID_TYPES.join(', ')}` });
         }
 
-        // Verify both documents exist and user has access
         const [sourceDoc, targetDoc] = await Promise.all([
             documentRepository.getByIdWithPermission(sourceNoteId, userId),
             documentRepository.getByIdWithPermission(targetNoteId, userId),
@@ -38,7 +37,6 @@ router.post('/', authenticateToken, async (req, res, next) => {
         if (!sourceDoc) throw new NotFoundError('Source note not found');
         if (!targetDoc) throw new NotFoundError('Target note not found');
 
-        // Check if connection already exists (either direction)
         const exists = await connectionRepository.exists(sourceNoteId, targetNoteId);
         if (exists) {
             return res.status(409).json({ error: 'Connection already exists between these notes' });

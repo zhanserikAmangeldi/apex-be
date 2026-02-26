@@ -7,9 +7,6 @@ import pool from '../../db/pool/index.js';
 
 const router = Router();
 
-/**
- * Extract plain text from a Yjs update/snapshot buffer
- */
 function extractText(data) {
     try {
         const ydoc = new Y.Doc();
@@ -48,9 +45,6 @@ function fragmentToText(node) {
     return text;
 }
 
-/**
- * GET /search/documents - Search documents by title
- */
 router.get('/documents', authenticateToken, async (req, res, next) => {
     try {
         const { query, vaultId, limit = 10 } = req.query;
@@ -79,9 +73,6 @@ router.get('/documents', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * GET /search/fulltext - Search documents by content
- */
 router.get('/fulltext', authenticateToken, async (req, res, next) => {
     try {
         const { query, vaultId, limit = 20 } = req.query;
@@ -94,7 +85,6 @@ router.get('/fulltext', authenticateToken, async (req, res, next) => {
         const searchTerm = query.trim().toLowerCase();
         const maxResults = Math.min(parseInt(limit) || 20, 50);
 
-        // Get all user's documents in vault (or all vaults)
         let docsQuery, docsParams;
         if (vaultId) {
             docsQuery = `SELECT d.id, d.title FROM documents d
@@ -120,14 +110,12 @@ router.get('/fulltext', authenticateToken, async (req, res, next) => {
             return res.json({ results: [] });
         }
 
-        // Get snapshots for these documents
         const snapshotsResult = await pool.query(
             `SELECT document_id, snapshot FROM crdt_snapshots WHERE document_id = ANY($1)`,
             [docIds]
         );
         const snapshotMap = new Map(snapshotsResult.rows.map(r => [r.document_id, r.snapshot]));
 
-        // Get updates for docs without snapshots
         const docIdsWithoutSnapshot = docIds.filter(id => !snapshotMap.has(id));
         let updatesMap = new Map();
         if (docIdsWithoutSnapshot.length > 0) {
@@ -140,7 +128,6 @@ router.get('/fulltext', authenticateToken, async (req, res, next) => {
             updatesMap = new Map(updatesResult.rows.map(r => [r.document_id, r.updates]));
         }
 
-        // Search through content
         const results = [];
         for (const docId of docIds) {
             if (results.length >= maxResults) break;
@@ -153,7 +140,6 @@ router.get('/fulltext', authenticateToken, async (req, res, next) => {
             const idx = lowerContent.indexOf(searchTerm);
 
             if (idx !== -1) {
-                // Extract snippet around match
                 const start = Math.max(0, idx - 40);
                 const end = Math.min(content.length, idx + searchTerm.length + 40);
                 let snippet = content.substring(start, end).replace(/\n/g, ' ').trim();

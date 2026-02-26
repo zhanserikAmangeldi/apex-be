@@ -276,7 +276,6 @@ router.post('/:id/share',
                 throw new ForbiddenError('Only vault owner can share');
             }
 
-            // If email is provided, fetch userId from user-service
             if (email && !userId) {
                 try {
                     const userServiceUrl = process.env.USER_SERVICE_URL || 'http://user-service:8080';
@@ -336,7 +335,6 @@ router.delete('/:id/share/:userId',
         try {
             const { id, userId } = req.params;
 
-            // Check if user is owner or admin
             const vault = await vaultRepository.getByIdWithPermission(id, req.user.userId);
             if (!vault) {
                 throw new NotFoundError('Vault not found');
@@ -375,7 +373,6 @@ router.patch('/:id/share/:userId',
             const { id, userId } = req.params;
             const { permission } = req.body;
 
-            // Check if user is owner or admin
             const vault = await vaultRepository.getByIdWithPermission(id, req.user.userId);
             if (!vault) {
                 throw new NotFoundError('Vault not found');
@@ -418,7 +415,6 @@ router.get('/:id/collaborators',
         try {
             const { id } = req.params;
 
-            // Check if user is owner or admin
             const vault = await vaultRepository.getByIdWithPermission(id, req.user.userId);
             if (!vault) {
                 throw new NotFoundError('Vault not found');

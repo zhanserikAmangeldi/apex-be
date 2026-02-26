@@ -11,9 +11,6 @@ import { extractDocumentLinks } from './document-links.service.js';
 
 const pendingSnapshots = new Map();
 
-/**
- * Create and configure Hocuspocus server
- */
 export function createHocuspocusServer() {
     const server = new Hocuspocus({
         port: config.hocuspocusPort,
@@ -27,9 +24,6 @@ export function createHocuspocusServer() {
             }),
         ],
 
-        /**
-         * Authentication hook
-         */
         async onAuthenticate({ token, documentName }) {
             if (!token) {
                 throw new Error('Authentication required');
@@ -45,7 +39,6 @@ export function createHocuspocusServer() {
                     throw new Error('Access denied to this document');
                 }
 
-                // Check if user has write access
                 const hasWriteAccess = await documentRepository.checkWriteAccess(documentId, user.userId);
 
                 console.log(`User ${user.username} authenticated for document ${documentId} (write: ${hasWriteAccess})`);
@@ -64,9 +57,6 @@ export function createHocuspocusServer() {
             }
         },
 
-        /**
-         * Load document state
-         */
         async onLoadDocument({ document, documentName }) {
             const documentId = documentName;
             console.log(`Loading document: ${documentId}`);
@@ -95,16 +85,12 @@ export function createHocuspocusServer() {
             }
         },
 
-        /**
-         * Handle document changes
-         */
         async onChange({ documentName, document, context }) {
             const documentId = documentName;
 
-            // Check if user has write access
             if (!context.user?.canWrite) {
                 console.log(`User ${context.user?.name} attempted to edit read-only document ${documentId}`);
-                return; // Ignore changes from read-only users
+                return;
             }
 
             try {
@@ -125,19 +111,14 @@ export function createHocuspocusServer() {
             }
         },
 
-        /**
-         * Handle store document (debounced)
-         */
         async onStoreDocument({ documentName, document, state, context }) {
             const documentId = documentName;
 
             try {
-                // state can be undefined in some Hocuspocus versions — encode from document
                 const docState = state || Y.encodeStateAsUpdate(document);
                 await updatesRepository.save(documentId, Buffer.from(docState));
                 console.log(`Stored update for ${documentId}`);
 
-                // Sync inline document links → notes_connections
                 const linkedIds = extractDocumentLinks(document);
                 const userId = context?.user?.id || null;
                 if (userId) {
@@ -145,43 +126,29 @@ export function createHocuspocusServer() {
                         .catch(err => console.error(`Failed to sync inline links for ${documentId}:`, err));
                 }
 
-                // Schedule AI indexing (debounced, non-blocking)
                 scheduleIndexing(documentId, document, null);
             } catch (err) {
                 console.error(`Failed to store document ${documentId}:`, err);
             }
         },
 
-        /**
-         * Client connected
-         */
         async onConnect({ documentName, context }) {
             const user = context.user;
             console.log(`User ${user?.name || 'unknown'} connected to ${documentName}`);
         },
 
-        /**
-         * Client disconnected
-         */
         async onDisconnect({ documentName, context }) {
             const user = context.user;
             console.log(`User ${user?.name || 'unknown'} disconnected from ${documentName}`);
         },
 
-        /**
-         * Handle awareness update (cursor positions, etc.)
-         */
         async onAwarenessUpdate({ documentName, awareness }) {
-            // Kogda nibud in feature...
         },
     });
 
     return server;
 }
 
-/**
- * Get pending snapshots and clear the queue
- */
 export function getPendingSnapshots() {
     const documents = Array.from(pendingSnapshots.keys());
     pendingSnapshots.clear();

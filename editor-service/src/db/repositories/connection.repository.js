@@ -1,9 +1,6 @@
 import pool from '../pool/index.js';
 
 export class ConnectionRepository {
-    /**
-     * Create a connection between two notes
-     */
     async create(sourceNoteId, targetNoteId, createdBy, connectionType = 'related', description = null, isInline = false) {
             const result = await pool.query(
                 `INSERT INTO notes_connections (source_note_id, target_note_id, created_by, connection_type, description, is_inline)
@@ -14,9 +11,6 @@ export class ConnectionRepository {
             return result.rows[0];
         }
 
-    /**
-     * Get all connections for a note (both directions)
-     */
     async getByNoteId(noteId) {
         const result = await pool.query(
             `SELECT nc.*,
@@ -34,9 +28,6 @@ export class ConnectionRepository {
         return result.rows;
     }
 
-    /**
-     * Get connections for a vault (for graph view)
-     */
     async getByVaultId(vaultId) {
         const result = await pool.query(
             `SELECT nc.id, nc.source_note_id, nc.target_note_id,
@@ -52,9 +43,6 @@ export class ConnectionRepository {
         return result.rows;
     }
 
-    /**
-     * Update a connection
-     */
     async update(connectionId, userId, { connectionType, description }) {
             const result = await pool.query(
                 `UPDATE notes_connections nc
@@ -71,9 +59,6 @@ export class ConnectionRepository {
             return result.rows[0] || null;
         }
 
-    /**
-     * Delete a connection
-     */
     async delete(connectionId, userId) {
             const result = await pool.query(
                 `DELETE FROM notes_connections nc
@@ -87,9 +72,6 @@ export class ConnectionRepository {
             );
             return result.rows.length > 0;
         }
-    /**
-     * Delete an inline connection by source and target document IDs
-     */
     async deleteInline(sourceNoteId, targetNoteId) {
         const result = await pool.query(
             `DELETE FROM notes_connections
@@ -100,10 +82,6 @@ export class ConnectionRepository {
         return result.rows.length > 0;
     }
 
-
-    /**
-     * Check if connection exists
-     */
     async exists(sourceNoteId, targetNoteId) {
             const result = await pool.query(
                 `SELECT 1 FROM notes_connections
@@ -112,9 +90,6 @@ export class ConnectionRepository {
             );
             return result.rows.length > 0;
         }
-    /**
-     * Get backlinks — documents that link TO the given note via connections
-     */
     async getBacklinks(noteId) {
         const result = await pool.query(
             `SELECT d.id, d.title, d.icon, nc.connection_type
@@ -126,19 +101,7 @@ export class ConnectionRepository {
         );
         return result.rows;
     }
-    /**
-     * Sync inline document links — ensure connections of type 'inline_link' match
-     * the set of targetIds extracted from the document content.
-     * Adds missing ones, removes stale ones.
-     */
-    /**
-         * Sync inline document links — ensure inline connections match
-         * the set of targetIds extracted from the document content.
-         * Only touches connections with is_inline=true.
-         * Adds missing ones (as 'references'), removes stale ones.
-         */
-        async syncInlineLinks(sourceNoteId, targetIds, userId) {
-            // Get current inline connections from this source
+    async syncInlineLinks(sourceNoteId, targetIds, userId) {
             const current = await pool.query(
                 `SELECT id, target_note_id FROM notes_connections
                  WHERE source_note_id = $1 AND is_inline = true`,
@@ -148,8 +111,6 @@ export class ConnectionRepository {
             const existingTargets = new Set(current.rows.map(r => r.target_note_id));
             const desiredTargets = new Set(targetIds.filter(id => id !== sourceNoteId));
 
-            // Add missing — default to 'references', user may have already created
-            // a connection with a chosen type via the UI (ON CONFLICT keeps existing)
             for (const targetId of desiredTargets) {
                 if (!existingTargets.has(targetId)) {
                     try {
@@ -160,12 +121,10 @@ export class ConnectionRepository {
                             [sourceNoteId, targetId, userId]
                         );
                     } catch (e) {
-                        // target document may not exist (FK violation) — skip
                     }
                 }
             }
 
-            // Remove stale inline connections (link removed from document)
             const staleIds = current.rows
                 .filter(r => !desiredTargets.has(r.target_note_id))
                 .map(r => r.id);
@@ -177,7 +136,6 @@ export class ConnectionRepository {
                 );
             }
         }
-
 
 }
 

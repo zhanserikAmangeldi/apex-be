@@ -3,9 +3,6 @@ import { snapshotRepository, updatesRepository } from '../db/repositories/index.
 import { config } from '../config/index.js';
 
 class CRDTService {
-    /**
-     * Merge snapshot and updates into single state
-     */
     mergeUpdates(snapshot, updates) {
         const ydoc = new Y.Doc();
 
@@ -20,9 +17,6 @@ class CRDTService {
         return Y.encodeStateAsUpdate(ydoc);
     }
 
-    /**
-     * Load full document state (snapshot + updates)
-     */
     async loadDocumentState(documentId, snapshotTime = null) {
         const snapshot = await snapshotRepository.load(documentId);
         const updates = await updatesRepository.loadSince(documentId, snapshotTime);
@@ -32,16 +26,10 @@ class CRDTService {
         return this.mergeUpdates(snapshot, updates);
     }
 
-    /**
-     * Save update for document
-     */
     async saveUpdate(documentId, updateData) {
         await updatesRepository.save(documentId, Buffer.from(updateData));
     }
 
-    /**
-     * Create snapshot for document
-     */
     async createSnapshot(documentId) {
         console.log(`Creating snapshot for document: ${documentId}`);
 
@@ -72,7 +60,6 @@ class CRDTService {
 
             console.log(`Snapshot created: ${documentId} (${size} bytes, storage: ${storage})`);
 
-            // Delete old updates
             const deletedCount = await updatesRepository.deleteOldUpdates(documentId, new Date());
             console.log(`🗑️ Deleted ${deletedCount} old updates for ${documentId}`);
 
@@ -83,24 +70,15 @@ class CRDTService {
         }
     }
 
-    /**
-     * Check if document needs snapshot
-     */
     async needsSnapshot(documentId) {
         const updateCount = await updatesRepository.getCount(documentId);
         return updateCount >= config.snapshot.threshold;
     }
 
-    /**
-     * Get update count for document
-     */
     async getUpdateCount(documentId) {
         return await updatesRepository.getCount(documentId);
     }
 
-    /**
-     * Get document statistics
-     */
     async getDocumentStats(documentId) {
         const [snapshotInfo, updateTimeRange, totalUpdateSize] = await Promise.all([
             snapshotRepository.getInfo(documentId),

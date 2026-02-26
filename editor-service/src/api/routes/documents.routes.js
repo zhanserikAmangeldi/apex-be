@@ -194,7 +194,6 @@ router.delete('/:id',
                 throw new NotFoundError('Document not found or no permission to delete');
             }
 
-            // Clean up AI embedding (non-blocking)
             deleteEmbedding(id, req.user.userId).catch(() => {});
 
             logAudit('document_deleted', req.user.userId, { documentId: id });
@@ -308,13 +307,11 @@ router.post('/:id/share',
             const { id } = req.params;
             let { userId, email, permission } = req.body;
 
-            // Check if user is owner
             const isOwner = await documentRepository.isOwner(id, req.user.userId);
             if (!isOwner) {
                 throw new ForbiddenError('Only document owner can share');
             }
 
-            // If email is provided, fetch userId from user-service
             if (email && !userId) {
                 try {
                     const userServiceUrl = process.env.USER_SERVICE_URL || 'http://user-service:8080';
@@ -388,7 +385,6 @@ router.delete('/:id/share/:userId',
         try {
             const { id, userId } = req.params;
 
-            // Check if user is owner or admin
             const document = await documentRepository.getByIdWithPermission(id, req.user.userId);
             if (!document) {
                 throw new NotFoundError('Document not found');
@@ -433,7 +429,6 @@ router.get('/:id/collaborators',
                 username: req.user.username
             });
 
-            // First check if document exists and user has any access
             const document = await documentRepository.getByIdWithPermission(id, req.user.userId);
             
             apiLogger.info('Document query result', {
@@ -444,7 +439,6 @@ router.get('/:id/collaborators',
             });
             
             if (!document) {
-                // Check if document exists at all
                 const exists = await documentRepository.exists(id);
                 apiLogger.warn('Document access denied', {
                     documentId: id,
@@ -459,7 +453,6 @@ router.get('/:id/collaborators',
                 }
             }
 
-            // Check if user can manage access
             const canManageAccess = document.user_permission === 'owner' || document.user_permission === 'admin';
             
             apiLogger.info('Permission check', {
@@ -504,7 +497,6 @@ router.patch('/:id/share/:userId',
             const { id, userId } = req.params;
             const { permission } = req.body;
 
-            // Check if user is owner or admin
             const document = await documentRepository.getByIdWithPermission(id, req.user.userId);
             if (!document) {
                 throw new NotFoundError('Document not found');
@@ -547,7 +539,6 @@ router.get('/:id/attachments',
         try {
             const { id } = req.params;
 
-            // Check document access
             const hasAccess = await documentRepository.checkAccess(id, req.user.userId);
             if (!hasAccess) {
                 throw new ForbiddenError('No access to this document');
@@ -555,7 +546,6 @@ router.get('/:id/attachments',
 
             const attachments = await attachmentRepository.getByDocumentId(id);
 
-            // Generate public download URLs for all attachments
             const attachmentsWithUrls = attachments.map((attachment) => ({
                 id: attachment.id,
                 documentId: attachment.document_id,

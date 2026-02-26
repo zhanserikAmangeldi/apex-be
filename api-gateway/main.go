@@ -68,7 +68,7 @@ func (i *IPRateLimiter) Cleanup() {
 	}
 }
 
-var ipLimiter = NewIPRateLimiter(rate.Limit(50), 100) // 50 req/s per IP, burst 100
+var ipLimiter = NewIPRateLimiter(rate.Limit(50), 100) 
 
 var wsUpgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -404,7 +404,6 @@ func proxyRequest(targetURL string, timeout time.Duration) gin.HandlerFunc {
 				originalPath := c.Request.URL.Path
 				targetPath := stripServicePrefix(originalPath)
 
-				// Preserve query string
 				req.URL.Path = targetPath
 				req.URL.RawQuery = c.Request.URL.RawQuery
 

@@ -7,9 +7,6 @@ import * as Y from 'yjs';
 
 const router = express.Router();
 
-/**
- * Extract document links from Yjs document
- */
 function extractDocumentLinks(snapshotOrUpdates) {
     try {
         const ydoc = new Y.Doc();
@@ -28,7 +25,6 @@ function extractDocumentLinks(snapshotOrUpdates) {
         function traverse(node) {
             if (!node) return;
             
-            // Check if this is a documentLink node
             if (node.nodeName === 'documentLink') {
                 const attrs = node.getAttributes ? node.getAttributes() : {};
                 if (attrs.id) {
@@ -36,7 +32,6 @@ function extractDocumentLinks(snapshotOrUpdates) {
                 }
             }
             
-            // Only XmlFragment and XmlElement have children via .get()
             if (node instanceof Y.XmlFragment || node instanceof Y.XmlElement) {
                 const len = node.length || 0;
                 for (let i = 0; i < len; i++) {
@@ -53,10 +48,6 @@ function extractDocumentLinks(snapshotOrUpdates) {
     }
 }
 
-/**
- * GET /api/v1/vaults/:vaultId/graph
- * Get graph data for a vault (nodes and edges)
- */
 router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) => {
     try {
         const { vaultId } = req.params;
@@ -68,10 +59,8 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
             username: req.user.username
         });
 
-        // Get all graph data
         const { documents, tags, snapshots, updates, connections } = await graphRepository.getVaultGraph(vaultId, userId);
 
-        // Build nodes
         const nodes = documents.map(doc => {
             const docTags = tags.filter(t => t.document_id === doc.id);
             return {
@@ -90,11 +79,9 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
             };
         });
 
-        // Build edges
         const edges = [];
-        const edgeSet = new Set(); // To avoid duplicates
+        const edgeSet = new Set();
 
-        // 1. Parent-child relationships
         documents.forEach(doc => {
             if (doc.parent_id) {
                 const edgeId = `parent-${doc.parent_id}-${doc.id}`;
@@ -110,7 +97,6 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
             }
         });
 
-        // 2. Document links from snapshots
         snapshots.forEach(snapshot => {
             const sourceId = snapshot.document_id;
             const linkedDocIds = extractDocumentLinks(snapshot.snapshot);
@@ -129,7 +115,6 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
             });
         });
 
-        // 2b. Document links from updates (for docs without snapshots)
         updates.forEach(row => {
             const sourceId = row.document_id;
             const linkedDocIds = extractDocumentLinks(row.updates);
@@ -148,7 +133,6 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
             });
         });
 
-        // 3. Tag relationships (documents with same tags)
         const tagGroups = {};
         tags.forEach(tag => {
             if (!tagGroups[tag.tag_id]) {
@@ -157,10 +141,8 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
             tagGroups[tag.tag_id].push(tag.document_id);
         });
 
-        // Create edges between documents with same tags
         Object.entries(tagGroups).forEach(([tagId, docIds]) => {
             if (docIds.length > 1) {
-                // Connect documents with the same tag
                 for (let i = 0; i < docIds.length; i++) {
                     for (let j = i + 1; j < docIds.length; j++) {
                         const edgeId = `tag-${tagId}-${docIds[i]}-${docIds[j]}`;
@@ -181,7 +163,6 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
             }
         });
 
-        // 4. Explicit Zettelkasten connections
         connections.forEach(conn => {
             const edgeId = `connection-${conn.id}`;
             if (!edgeSet.has(edgeId)) {
@@ -222,10 +203,6 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
     }
 });
 
-/**
- * GET /api/v1/documents/:documentId/backlinks
- * Get all documents that link to the given document (via Zettelkasten connections)
- */
 router.get('/documents/:documentId/backlinks', authenticateToken, async (req, res, next) => {
     try {
         const { documentId } = req.params;
