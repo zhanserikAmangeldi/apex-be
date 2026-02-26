@@ -14,6 +14,7 @@ import { minioService } from '../../storage/minio.service.js';
 import { config } from '../../config/index.js';
 import { NotFoundError, ForbiddenError } from '../middleware/index.js';
 import { apiLogger, logAudit } from '../../services/logger.service.js';
+import { deleteEmbedding } from '../../services/ai-indexer.service.js';
 
 const router = Router();
 
@@ -192,6 +193,9 @@ router.delete('/:id',
             if (!result) {
                 throw new NotFoundError('Document not found or no permission to delete');
             }
+
+            // Clean up AI embedding (non-blocking)
+            deleteEmbedding(id, req.user.userId).catch(() => {});
 
             logAudit('document_deleted', req.user.userId, { documentId: id });
 

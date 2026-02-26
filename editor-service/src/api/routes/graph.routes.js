@@ -9,32 +9,37 @@ const router = express.Router();
 /**
  * Extract document links from Yjs document
  */
-function extractDocumentLinks(snapshot) {
+function extractDocumentLinks(snapshotOrUpdates) {
     try {
         const ydoc = new Y.Doc();
-        Y.applyUpdate(ydoc, snapshot);
+        
+        if (Array.isArray(snapshotOrUpdates)) {
+            for (const update of snapshotOrUpdates) {
+                Y.applyUpdate(ydoc, update);
+            }
+        } else {
+            Y.applyUpdate(ydoc, snapshotOrUpdates);
+        }
         
         const fragment = ydoc.getXmlFragment('default');
         const links = [];
         
-        // Traverse the document tree to find documentLink nodes
         function traverse(node) {
             if (!node) return;
             
             // Check if this is a documentLink node
             if (node.nodeName === 'documentLink') {
-                const id = node.getAttribute('data-id');
-                if (id) {
-                    links.push(id);
+                const attrs = node.getAttributes ? node.getAttributes() : {};
+                if (attrs.id) {
+                    links.push(attrs.id);
                 }
             }
             
-            // Recursively traverse children
-            if (node._first) {
-                let child = node._first;
-                while (child) {
-                    traverse(child);
-                    child = child._right;
+            // Only XmlFragment and XmlElement have children via .get()
+            if (node instanceof Y.XmlFragment || node instanceof Y.XmlElement) {
+                const len = node.length || 0;
+                for (let i = 0; i < len; i++) {
+                    traverse(node.get(i));
                 }
             }
         }
@@ -63,7 +68,7 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
         });
 
         // Get all graph data
-        const { documents, tags, snapshots } = await graphRepository.getVaultGraph(vaultId, userId);
+        const { documents, tags, snapshots, updates } = await graphRepository.getVaultGraph(vaultId, userId);
 
         // Build nodes
         const nodes = documents.map(doc => {
@@ -104,10 +109,29 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
             }
         });
 
-        // 2. Document links from content
+        // 2. Document links from snapshots
         snapshots.forEach(snapshot => {
             const sourceId = snapshot.document_id;
             const linkedDocIds = extractDocumentLinks(snapshot.snapshot);
+            
+            linkedDocIds.forEach(targetId => {
+                const edgeId = `link-${sourceId}-${targetId}`;
+                if (!edgeSet.has(edgeId) && documents.find(d => d.id === targetId)) {
+                    edges.push({
+                        id: edgeId,
+                        source: sourceId,
+                        target: targetId,
+                        type: 'document-link'
+                    });
+                    edgeSet.add(edgeId);
+                }
+            });
+        });
+
+        // 2b. Document links from updates (for docs without snapshots)
+        updates.forEach(row => {
+            const sourceId = row.document_id;
+            const linkedDocIds = extractDocumentLinks(row.updates);
             
             linkedDocIds.forEach(targetId => {
                 const edgeId = `link-${sourceId}-${targetId}`;
@@ -176,6 +200,65 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
         });
     } catch (error) {
         console.error('Graph API Error:', error);
+        next(error);
+    }
+});
+
+/**
+ * GET /api/v1/documents/:documentId/backlinks
+ * Get all documents that link to the given document
+ */
+router.get('/documents/:documentId/backlinks', authenticateToken, async (req, res, next) => {
+    try {
+        const { documentId } = req.params;
+        const userId = req.user.userId;
+
+        // Get the document to find its vault
+        const { document: doc, vaultDocuments, snapshots, updates } = await graphRepository.getBacklinksData(documentId, userId);
+
+        if (!doc) {
+            return res.status(404).json({ error: 'Document not found' });
+        }
+
+        // Find all documents that contain a link to documentId
+        const backlinks = [];
+
+        // Check snapshots
+        for (const snapshot of snapshots) {
+            if (snapshot.document_id === documentId) continue;
+            const linkedIds = extractDocumentLinks(snapshot.snapshot);
+            if (linkedIds.includes(documentId)) {
+                const sourceDoc = vaultDocuments.find(d => d.id === snapshot.document_id);
+                if (sourceDoc) {
+                    backlinks.push({
+                        id: sourceDoc.id,
+                        title: sourceDoc.title,
+                        icon: sourceDoc.icon || '📄',
+                    });
+                }
+            }
+        }
+
+        // Check updates
+        for (const row of updates) {
+            if (row.document_id === documentId) continue;
+            if (backlinks.find(b => b.id === row.document_id)) continue; // already found via snapshot
+            const linkedIds = extractDocumentLinks(row.updates);
+            if (linkedIds.includes(documentId)) {
+                const sourceDoc = vaultDocuments.find(d => d.id === row.document_id);
+                if (sourceDoc) {
+                    backlinks.push({
+                        id: sourceDoc.id,
+                        title: sourceDoc.title,
+                        icon: sourceDoc.icon || '📄',
+                    });
+                }
+            }
+        }
+
+        res.json({ backlinks, count: backlinks.length });
+    } catch (error) {
+        console.error('Backlinks API Error:', error);
         next(error);
     }
 });

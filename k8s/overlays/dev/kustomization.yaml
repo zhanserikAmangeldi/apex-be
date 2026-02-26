@@ -1,0 +1,74 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: apex-dev
+
+namePrefix: dev-
+
+resources:
+  - ../../base
+
+patches:
+  # Scale down for dev
+  - target:
+      kind: Deployment
+      name: api-gateway
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: Deployment
+      name: user-service
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: Deployment
+      name: editor-service
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  # Reduce resource limits for dev
+  - target:
+      kind: Deployment
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: 250m
+  # Dev ingress host
+  - target:
+      kind: Ingress
+      name: apex-ingress
+    patch: |
+      - op: replace
+        path: /spec/rules/0/host
+        value: dev.apex.example.com
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: dev.apex.example.com
+      - op: replace
+        path: /spec/tls/0/secretName
+        value: apex-dev-tls
+
+configMapGenerator:
+  - name: api-gateway-config
+    behavior: merge
+    literals:
+      - GIN_MODE=debug
+      - ALLOWED_ORIGINS=http://localhost:5173,https://dev.apex.example.com
+  - name: user-service-config
+    behavior: merge
+    literals:
+      - ENV=development
+      - BASE_URL=https://dev.apex.example.com
+  - name: editor-service-config
+    behavior: merge
+    literals:
+      - NODE_ENV=development
+  - name: ai-service-config
+    behavior: merge
+    literals:
+      - ENV=development

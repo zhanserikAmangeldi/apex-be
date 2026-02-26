@@ -1,0 +1,86 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: apex
+
+resources:
+  - namespace.yaml
+  # Infrastructure
+  - infrastructure/user-postgres.yaml
+  - infrastructure/editor-postgres.yaml
+  - infrastructure/ai-postgres.yaml
+  - infrastructure/redis.yaml
+  - infrastructure/minio.yaml
+  # Application services
+  - services/user-service.yaml
+  - services/editor-service.yaml
+  - services/ai-service.yaml
+  - services/api-gateway.yaml
+  # Networking
+  - ingress.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: apex
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: api-gateway-config
+    literals:
+      - PORT=8000
+      - GIN_MODE=release
+      - AUTH_SERVICE_URL=http://user-service:8080
+      - EDITOR_SERVICE_URL=http://editor-service:3000
+      - EDITOR_WS_URL=ws://editor-service:1234
+      - AI_SERVICE_URL=http://ai-service:8090
+      - ALLOWED_ORIGINS=https://apex.example.com
+  - name: user-service-config
+    literals:
+      - HTTP_PORT=8080
+      - ENV=production
+      - DB_HOST=user-postgres
+      - DB_PORT=5432
+      - DB_NAME=user_service
+      - DB_MAX_CONNS=20
+      - JWT_ACCESS_DURATION=15m
+      - JWT_REFRESH_DURATION=168h
+      - SMTP_PORT=587
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MINIO_HOST=minio
+      - MINIO_PORT=9000
+      - MINIO_USE_SSL=false
+      - BASE_URL=https://apex.example.com
+  - name: editor-service-config
+    literals:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOCUSPOCUS_PORT=1234
+      - DB_HOST=editor-postgres
+      - DB_PORT=5432
+      - DB_NAME=editor_service
+      - DB_MAX_CONNECTIONS=20
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_USE_SSL=false
+      - MINIO_EXTERNAL_ENDPOINT=minio.apex.example.com
+      - MINIO_EXTERNAL_PORT=443
+      - MINIO_BUCKET_SNAPSHOTS=crdt-snapshots
+      - MINIO_BUCKET_ATTACHMENTS=attachments
+      - AUTH_SERVICE_URL=http://user-service:8080
+      - AUTH_TOKEN_CACHE_TTL=60
+      - AI_SERVICE_URL=http://ai-service:8090
+      - SNAPSHOT_SIZE_LIMIT_MB=5
+      - SNAPSHOT_THRESHOLD_UPDATES=200
+      - SNAPSHOT_WORKER_INTERVAL_MS=30000
+  - name: ai-service-config
+    literals:
+      - DB_HOST=ai-postgres
+      - DB_PORT=5432
+      - DB_NAME=ai_service
+      - EMBEDDING_MODEL=all-MiniLM-L6-v2
+      - PORT=8090
+      - ENV=production
+      - EDITOR_SERVICE_URL=http://editor-service:3000

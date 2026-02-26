@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-service
+  namespace: apex
+  labels:
+    app: ai-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-service
+  template:
+    metadata:
+      labels:
+        app: ai-service
+    spec:
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z ai-postgres 5432; do echo waiting for ai-postgres; sleep 2; done']
+      containers:
+        - name: ai-service
+          image: apex/ai-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8090
+          envFrom:
+            - configMapRef:
+                name: ai-service-config
+            - secretRef:
+                name: ai-service-secret
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 45
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-service
+  namespace: apex
+spec:
+  selector:
+    app: ai-service
+  ports:
+    - port: 8090
+      targetPort: 8090
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ai-service-secret
+  namespace: apex
+type: Opaque
+stringData:
+  DB_USER: ai-service
+  DB_PASSWORD: change-me-in-production
+  JWT_SECRET: your-super-secret-jwt-key-change-in-production-min-32-chars

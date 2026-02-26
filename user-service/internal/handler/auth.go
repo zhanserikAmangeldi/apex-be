@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 
@@ -11,6 +12,36 @@ import (
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/middleware"
 	"github.com/zhanserikAmangeldi/apex-be/user-service/internal/service"
 )
+
+// setRefreshTokenCookie sets the refresh token as an httpOnly cookie.
+func setRefreshTokenCookie(c *gin.Context, refreshToken string, maxAgeSeconds int) {
+	secure := os.Getenv("ENV") == "production"
+	sameSite := http.SameSiteLaxMode
+	if secure {
+		sameSite = http.SameSiteNoneMode
+	}
+	c.SetSameSite(sameSite)
+	c.SetCookie(
+		"refresh_token",
+		refreshToken,
+		maxAgeSeconds,
+		"/api/v1/auth", // only sent to auth endpoints
+		"",             // domain — empty = current host
+		secure,         // secure flag
+		true,           // httpOnly
+	)
+}
+
+// clearRefreshTokenCookie removes the refresh token cookie.
+func clearRefreshTokenCookie(c *gin.Context) {
+	secure := os.Getenv("ENV") == "production"
+	sameSite := http.SameSiteLaxMode
+	if secure {
+		sameSite = http.SameSiteNoneMode
+	}
+	c.SetSameSite(sameSite)
+	c.SetCookie("refresh_token", "", -1, "/api/v1/auth", "", secure, true)
+}
 
 type AuthHandler struct {
 	authService *service.AuthService
@@ -52,6 +83,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// Set refresh token as httpOnly cookie (7 days)
+	setRefreshTokenCookie(c, authResp.RefreshToken, 7*24*60*60)
+
 	c.JSON(http.StatusCreated, authResp)
 }
 
@@ -86,6 +120,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// Set refresh token as httpOnly cookie (7 days)
+	setRefreshTokenCookie(c, authResp.RefreshToken, 7*24*60*60)
+
 	c.JSON(http.StatusOK, authResp)
 }
 
@@ -114,6 +151,7 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 		return
 	}
 
+	setRefreshTokenCookie(c, authResp.RefreshToken, 7*24*60*60)
 	c.JSON(http.StatusOK, authResp)
 }
 
@@ -142,6 +180,7 @@ func (h *AuthHandler) GithubLogin(c *gin.Context) {
 		return
 	}
 
+	setRefreshTokenCookie(c, authResp.RefreshToken, 7*24*60*60)
 	c.JSON(http.StatusOK, authResp)
 }
 
@@ -166,6 +205,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
+	clearRefreshTokenCookie(c)
 	c.JSON(http.StatusOK, dto.SuccessResponse{Message: "Logged out successfully"})
 }
 
@@ -181,8 +221,13 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req dto.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("validation_error", err.Error()))
-		return
+		// Fallback: try reading refresh token from httpOnly cookie
+		cookieToken, cookieErr := c.Cookie("refresh_token")
+		if cookieErr != nil || cookieToken == "" {
+			c.JSON(http.StatusBadRequest, dto.NewErrorResponse("validation_error", "refresh_token is required"))
+			return
+		}
+		req.RefreshToken = cookieToken
 	}
 
 	userAgent, ipAddress := getClientInfo(c)
@@ -197,10 +242,12 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 			code = "SESSION_REVOKED"
 		}
 
+		clearRefreshTokenCookie(c)
 		c.JSON(status, dto.NewErrorResponseWithCode("invalid_token", err.Error(), code))
 		return
 	}
 
+	setRefreshTokenCookie(c, authResp.RefreshToken, 7*24*60*60)
 	c.JSON(http.StatusOK, authResp)
 }
 
@@ -223,6 +270,7 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 		return
 	}
 
+	clearRefreshTokenCookie(c)
 	c.JSON(http.StatusOK, dto.SuccessResponse{Message: "Logged out from all devices successfully"})
 }
 

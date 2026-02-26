@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: apex
+  labels:
+    app: user-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z user-postgres 5432; do echo waiting for user-postgres; sleep 2; done']
+      containers:
+        - name: user-service
+          image: apex/user-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: user-service-config
+            - secretRef:
+                name: user-service-secret
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: apex
+spec:
+  selector:
+    app: user-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: user-service-secret
+  namespace: apex
+type: Opaque
+stringData:
+  DB_USER: user-service
+  DB_PASSWORD: change-me-in-production
+  JWT_SECRET: your-super-secret-jwt-key-change-in-production-min-32-chars
+  SMTP_HOST: smtp.gmail.com
+  SMTP_USER: noreply@example.com
+  SMTP_PASSWORD: change-me
+  SMTP_FROM: noreply@apex-editor.com
+  MINIO_USER: admin
+  MINIO_PASSWORD: change-me-in-production-min-8-chars

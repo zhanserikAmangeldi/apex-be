@@ -164,6 +164,7 @@ services:
       - AUTH_SERVICE_URL=http://user-service:${HTTP_PORT:-8080}
       - AUTH_TOKEN_CACHE_TTL=${AUTH_TOKEN_CACHE_TTL:-60}
       - JWT_SECRET=${JWT_SECRET}
+      - AI_SERVICE_URL=http://ai-service:8090
       - SNAPSHOT_SIZE_LIMIT_MB=${SNAPSHOT_SIZE_LIMIT_MB:-5}
       - SNAPSHOT_THRESHOLD_UPDATES=${SNAPSHOT_THRESHOLD_UPDATES:-200}
       - SNAPSHOT_WORKER_INTERVAL_MS=${SNAPSHOT_WORKER_INTERVAL_MS:-30000}
@@ -179,6 +180,59 @@ services:
     networks:
       - apex-network
 
+  # ===========================================
+  # AI SERVICE
+  # ===========================================
+  ai-postgres:
+    image: pgvector/pgvector:pg17
+    container_name: ai-postgres
+    environment:
+      POSTGRES_DB: ${AI_DB_NAME:-ai_service}
+      POSTGRES_USER: ${AI_DB_USER:-ai-service}
+      POSTGRES_PASSWORD: ${AI_DB_PASSWORD:-change-me-in-production}
+    ports:
+      - "${AI_DB_PORT_FORWARD:-5435}:5432"
+    volumes:
+      - ai_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AI_DB_USER:-ai-service} -d ${AI_DB_NAME:-ai_service}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - apex-network
+
+  ai-service:
+    build: ./ai-service
+    container_name: ai-service
+    depends_on:
+      ai-postgres:
+        condition: service_healthy
+    environment:
+      - DB_HOST=ai-postgres
+      - DB_PORT=5432
+      - DB_USER=${AI_DB_USER:-ai-service}
+      - DB_PASSWORD=${AI_DB_PASSWORD:-change-me-in-production}
+      - DB_NAME=${AI_DB_NAME:-ai_service}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+      - PORT=8090
+      - ENV=${ENV:-development}
+      - EDITOR_SERVICE_URL=http://editor-service:${EDITOR_HTTP_PORT:-3000}
+      - JWT_SECRET=${JWT_SECRET}
+    ports:
+      - "${AI_HTTP_PORT_FORWARD:-8090}:8090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 -O /dev/null http://localhost:8090/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - apex-network
+
+  # ===========================================
+  # API GATEWAY
+  # ===========================================
   api-gateway:
     build: ./api-gateway
     container_name: api-gateway
@@ -186,6 +240,8 @@ services:
       user-service:
         condition: service_healthy
       editor-service:
+        condition: service_healthy
+      ai-service:
         condition: service_healthy
     environment:
       - PORT=${GATEWAY_PORT:-8000}
@@ -195,6 +251,7 @@ services:
       - EDITOR_WS_URL=ws://editor-service:${EDITOR_WS_PORT:-1234}
       - JWT_SECRET=${JWT_SECRET}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+      - AI_SERVICE_URL=http://ai-service:8090
     ports:
       - "${GATEWAY_PORT:-8000}:${GATEWAY_PORT:-8000}"
     healthcheck:
@@ -209,6 +266,7 @@ services:
 volumes:
   user_postgres_data:
   editor_postgres_data:
+  ai_postgres_data:
   redis_data:
   minio_data:
 

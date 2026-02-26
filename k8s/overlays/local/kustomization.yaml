@@ -1,0 +1,137 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: apex
+
+resources:
+  - ../../base
+
+patches:
+  # All services: 1 replica
+  - target:
+      kind: Deployment
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  # Reduce resources for local
+  - target:
+      kind: Deployment
+      name: api-gateway
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 128Mi
+  - target:
+      kind: Deployment
+      name: user-service
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+  - target:
+      kind: Deployment
+      name: editor-service
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+  - target:
+      kind: Deployment
+      name: ai-service
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+  # Reduce PVC sizes for local
+  - target:
+      kind: PersistentVolumeClaim
+      name: user-postgres-pvc
+    patch: |
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 1Gi
+  - target:
+      kind: PersistentVolumeClaim
+      name: editor-postgres-pvc
+    patch: |
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 1Gi
+  - target:
+      kind: PersistentVolumeClaim
+      name: ai-postgres-pvc
+    patch: |
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 1Gi
+  - target:
+      kind: PersistentVolumeClaim
+      name: minio-pvc
+    patch: |
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 2Gi
+  - target:
+      kind: PersistentVolumeClaim
+      name: redis-pvc
+    patch: |
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 512Mi
+  # Local ingress — no TLS, localhost
+  - target:
+      kind: Ingress
+      name: apex-ingress
+    patch: |
+      - op: replace
+        path: /spec/rules/0/host
+        value: localhost
+      - op: remove
+        path: /spec/tls
+
+configMapGenerator:
+  - name: api-gateway-config
+    behavior: merge
+    literals:
+      - GIN_MODE=debug
+      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,http://localhost:8000
+  - name: user-service-config
+    behavior: merge
+    literals:
+      - ENV=development
+      - BASE_URL=http://localhost:8000
+  - name: editor-service-config
+    behavior: merge
+    literals:
+      - NODE_ENV=development
+      - MINIO_EXTERNAL_ENDPOINT=localhost
+      - MINIO_EXTERNAL_PORT=9000
+  - name: ai-service-config
+    behavior: merge
+    literals:
+      - ENV=development
