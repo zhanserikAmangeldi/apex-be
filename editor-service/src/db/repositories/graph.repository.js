@@ -69,11 +69,24 @@ export class GraphRepository {
             [vaultId]
         );
 
+        // Get explicit Zettelkasten connections
+        const connectionsResult = await pool.query(
+            `SELECT nc.id, nc.source_note_id, nc.target_note_id,
+                    nc.connection_type, nc.description
+             FROM notes_connections nc
+             INNER JOIN documents d_source ON d_source.id = nc.source_note_id
+                AND d_source.vault_id = $1 AND d_source.is_deleted = false
+             INNER JOIN documents d_target ON d_target.id = nc.target_note_id
+                AND d_target.vault_id = $1 AND d_target.is_deleted = false`,
+            [vaultId]
+        );
+
         return {
             documents: documentsResult.rows,
             tags: tagsResult.rows,
             snapshots: linksResult.rows,
-            updates: updatesResult.rows
+            updates: updatesResult.rows,
+            connections: connectionsResult.rows
         };
     }
 

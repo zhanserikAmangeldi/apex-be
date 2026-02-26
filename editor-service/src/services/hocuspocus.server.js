@@ -5,7 +5,9 @@ import { config } from '../config/index.js';
 import { authService } from './auth.service.js';
 import { crdtService } from './crdt.service.js';
 import { documentRepository, updatesRepository } from '../db/repositories/index.js';
+import { connectionRepository } from '../db/repositories/connection.repository.js';
 import { scheduleIndexing } from './ai-indexer.service.js';
+import { extractDocumentLinks } from './document-links.service.js';
 
 const pendingSnapshots = new Map();
 
@@ -126,7 +128,7 @@ export function createHocuspocusServer() {
         /**
          * Handle store document (debounced)
          */
-        async onStoreDocument({ documentName, document, state }) {
+        async onStoreDocument({ documentName, document, state, context }) {
             const documentId = documentName;
 
             try {
@@ -134,6 +136,14 @@ export function createHocuspocusServer() {
                 const docState = state || Y.encodeStateAsUpdate(document);
                 await updatesRepository.save(documentId, Buffer.from(docState));
                 console.log(`Stored update for ${documentId}`);
+
+                // Sync inline document links → notes_connections
+                const linkedIds = extractDocumentLinks(document);
+                const userId = context?.user?.id || null;
+                if (userId) {
+                    await connectionRepository.syncInlineLinks(documentId, linkedIds, userId)
+                        .catch(err => console.error(`Failed to sync inline links for ${documentId}:`, err));
+                }
 
                 // Schedule AI indexing (debounced, non-blocking)
                 scheduleIndexing(documentId, document, null);

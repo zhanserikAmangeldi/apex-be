@@ -14,6 +14,7 @@ import attachmentsRoutes from './api/routes/attachments.routes.js';
 import tagsRoutes from './api/routes/tags.routes.js';
 import searchRoutes from './api/routes/search.routes.js';
 import graphRoutes from './api/routes/graph.routes.js';
+import connectionsRoutes from './api/routes/connections.routes.js';
 
 import { errorHandler, notFoundHandler } from './api/middleware/index.js';
 
@@ -67,6 +68,7 @@ async function main() {
     app.use('/api/v1', tagsRoutes);
     app.use('/api/v1/search', searchRoutes);
     app.use('/api/v1', graphRoutes);
+    app.use('/api/v1/connections', connectionsRoutes);
     
     // Public download endpoint (bypasses API Gateway auth)
     app.get('/public/attachments/:id/download', async (req, res, next) => {

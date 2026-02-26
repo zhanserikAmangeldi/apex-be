@@ -1,5 +1,6 @@
 import express from 'express';
 import { graphRepository } from '../../db/repositories/graph.repository.js';
+import { connectionRepository } from '../../db/repositories/connection.repository.js';
 import { authenticateToken } from '../middleware/index.js';
 import { apiLogger } from '../../services/logger.service.js';
 import * as Y from 'yjs';
@@ -68,7 +69,7 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
         });
 
         // Get all graph data
-        const { documents, tags, snapshots, updates } = await graphRepository.getVaultGraph(vaultId, userId);
+        const { documents, tags, snapshots, updates, connections } = await graphRepository.getVaultGraph(vaultId, userId);
 
         // Build nodes
         const nodes = documents.map(doc => {
@@ -180,6 +181,22 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
             }
         });
 
+        // 4. Explicit Zettelkasten connections
+        connections.forEach(conn => {
+            const edgeId = `connection-${conn.id}`;
+            if (!edgeSet.has(edgeId)) {
+                edges.push({
+                    id: edgeId,
+                    source: conn.source_note_id,
+                    target: conn.target_note_id,
+                    type: 'connection',
+                    connectionType: conn.connection_type,
+                    description: conn.description
+                });
+                edgeSet.add(edgeId);
+            }
+        });
+
         apiLogger.debug('Graph API result', {
             vaultId,
             userId,
@@ -195,7 +212,8 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
                 totalEdges: edges.length,
                 hierarchyEdges: edges.filter(e => e.type === 'hierarchy').length,
                 documentLinkEdges: edges.filter(e => e.type === 'document-link').length,
-                tagEdges: edges.filter(e => e.type === 'tag').length
+                tagEdges: edges.filter(e => e.type === 'tag').length,
+                connectionEdges: edges.filter(e => e.type === 'connection').length
             }
         });
     } catch (error) {
@@ -206,55 +224,19 @@ router.get('/vaults/:vaultId/graph', authenticateToken, async (req, res, next) =
 
 /**
  * GET /api/v1/documents/:documentId/backlinks
- * Get all documents that link to the given document
+ * Get all documents that link to the given document (via Zettelkasten connections)
  */
 router.get('/documents/:documentId/backlinks', authenticateToken, async (req, res, next) => {
     try {
         const { documentId } = req.params;
-        const userId = req.user.userId;
 
-        // Get the document to find its vault
-        const { document: doc, vaultDocuments, snapshots, updates } = await graphRepository.getBacklinksData(documentId, userId);
-
-        if (!doc) {
-            return res.status(404).json({ error: 'Document not found' });
-        }
-
-        // Find all documents that contain a link to documentId
-        const backlinks = [];
-
-        // Check snapshots
-        for (const snapshot of snapshots) {
-            if (snapshot.document_id === documentId) continue;
-            const linkedIds = extractDocumentLinks(snapshot.snapshot);
-            if (linkedIds.includes(documentId)) {
-                const sourceDoc = vaultDocuments.find(d => d.id === snapshot.document_id);
-                if (sourceDoc) {
-                    backlinks.push({
-                        id: sourceDoc.id,
-                        title: sourceDoc.title,
-                        icon: sourceDoc.icon || '📄',
-                    });
-                }
-            }
-        }
-
-        // Check updates
-        for (const row of updates) {
-            if (row.document_id === documentId) continue;
-            if (backlinks.find(b => b.id === row.document_id)) continue; // already found via snapshot
-            const linkedIds = extractDocumentLinks(row.updates);
-            if (linkedIds.includes(documentId)) {
-                const sourceDoc = vaultDocuments.find(d => d.id === row.document_id);
-                if (sourceDoc) {
-                    backlinks.push({
-                        id: sourceDoc.id,
-                        title: sourceDoc.title,
-                        icon: sourceDoc.icon || '📄',
-                    });
-                }
-            }
-        }
+        const rows = await connectionRepository.getBacklinks(documentId);
+        const backlinks = rows.map(r => ({
+            id: r.id,
+            title: r.title,
+            icon: r.icon || '📄',
+            connectionType: r.connection_type,
+        }));
 
         res.json({ backlinks, count: backlinks.length });
     } catch (error) {
