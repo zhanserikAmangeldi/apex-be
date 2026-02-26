@@ -13,15 +13,11 @@ spec:
   source:
     repoURL: https://github.com/zhanserikAmangeldi/apex-be.git
     targetRevision: refact-refresh-token-http-only
-    path: k8s/overlays/dev
+    path: k8s/overlays/local
   destination:
     server: https://kubernetes.default.svc
-    namespace: apex-dev
+    namespace: apex
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-      allowEmpty: false
     syncOptions:
       - CreateNamespace=true
       - PrunePropagationPolicy=foreground
