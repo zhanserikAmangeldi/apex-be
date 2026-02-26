@@ -22,7 +22,6 @@ spec:
       containers:
         - name: api-gateway
           image: apex/api-gateway:latest
-          imagePullPolicy: Never
           ports:
             - containerPort: 8000
           envFrom:
@@ -61,12 +60,4 @@ spec:
   ports:
     - port: 8000
       targetPort: 8000
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: api-gateway-secret
-  namespace: apex
-type: Opaque
-stringData:
-  JWT_SECRET: your-super-secret-jwt-key-change-in-production-min-32-chars
+

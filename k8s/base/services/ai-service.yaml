@@ -22,7 +22,6 @@ spec:
       containers:
         - name: ai-service
           image: apex/ai-service:latest
-          imagePullPolicy: Never
           ports:
             - containerPort: 8090
           envFrom:
@@ -61,14 +60,4 @@ spec:
   ports:
     - port: 8090
       targetPort: 8090
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ai-service-secret
-  namespace: apex
-type: Opaque
-stringData:
-  DB_USER: ai-service
-  DB_PASSWORD: change-me-in-production
-  JWT_SECRET: your-super-secret-jwt-key-change-in-production-min-32-chars
+

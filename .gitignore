@@ -49,3 +49,7 @@ mock/
 mocks/
 
 node_modules/
+
+# K8s secrets (env files with actual values)
+k8s/base/secrets/*.env
+k8s/overlays/*/secrets/*.env

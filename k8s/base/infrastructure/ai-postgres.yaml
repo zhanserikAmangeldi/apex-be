@@ -72,14 +72,4 @@ spec:
     - port: 5432
       targetPort: 5432
   clusterIP: None
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ai-postgres-secret
-  namespace: apex
-type: Opaque
-stringData:
-  POSTGRES_DB: ai_service
-  POSTGRES_USER: ai-service
-  POSTGRES_PASSWORD: change-me-in-production
+

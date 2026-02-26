@@ -72,14 +72,4 @@ spec:
     - port: 5432
       targetPort: 5432
   clusterIP: None
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: editor-postgres-secret
-  namespace: apex
-type: Opaque
-stringData:
-  POSTGRES_DB: editor_service
-  POSTGRES_USER: editor-service
-  POSTGRES_PASSWORD: change-me-in-production
+

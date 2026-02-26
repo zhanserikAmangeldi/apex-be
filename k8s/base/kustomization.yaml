@@ -26,6 +26,24 @@ labels:
 generatorOptions:
   disableNameSuffixHash: true
 
+secretGenerator:
+  - name: user-postgres-secret
+    envs: [secrets/user-postgres.env]
+  - name: editor-postgres-secret
+    envs: [secrets/editor-postgres.env]
+  - name: ai-postgres-secret
+    envs: [secrets/ai-postgres.env]
+  - name: minio-secret
+    envs: [secrets/minio.env]
+  - name: user-service-secret
+    envs: [secrets/user-service.env]
+  - name: editor-service-secret
+    envs: [secrets/editor-service.env]
+  - name: ai-service-secret
+    envs: [secrets/ai-service.env]
+  - name: api-gateway-secret
+    envs: [secrets/api-gateway.env]
+
 configMapGenerator:
   - name: api-gateway-config
     literals:

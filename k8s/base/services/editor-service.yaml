@@ -22,7 +22,6 @@ spec:
       containers:
         - name: editor-service
           image: apex/editor-service:latest
-          imagePullPolicy: Never
           ports:
             - containerPort: 3000
               name: http
@@ -68,16 +67,4 @@ spec:
     - port: 1234
       targetPort: 1234
       name: websocket
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: editor-service-secret
-  namespace: apex
-type: Opaque
-stringData:
-  DB_USER: editor-service
-  DB_PASSWORD: change-me-in-production
-  JWT_SECRET: your-super-secret-jwt-key-change-in-production-min-32-chars
-  MINIO_ACCESS_KEY: admin
-  MINIO_SECRET_KEY: change-me-in-production-min-8-chars
+

@@ -80,13 +80,4 @@ spec:
     - port: 9001
       targetPort: 9001
       name: console
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: minio-secret
-  namespace: apex
-type: Opaque
-stringData:
-  MINIO_ROOT_USER: admin
-  MINIO_ROOT_PASSWORD: change-me-in-production-min-8-chars
+
