@@ -39,7 +39,7 @@ function xmlFragmentToText(node) {
     return text;
 }
 
-async function indexDocument(documentId, userId, title, content) {
+async function indexDocument(documentId, userId, vaultId, title, content) {
     try {
         const url = `${AI_SERVICE_URL}/api/v1/embeddings`;
 
@@ -53,6 +53,7 @@ async function indexDocument(documentId, userId, title, content) {
             },
             body: JSON.stringify({
                 document_id: documentId,
+                vault_id: vaultId,
                 title: title || '',
                 content: content,
             }),
@@ -82,16 +83,17 @@ export function scheduleIndexing(documentId, ydoc, userId) {
 
         try {
             const content = extractTextFromYDoc(ydoc);
-            if (!content || content.trim().length < 10) {
-                return;
-            }
 
             const doc = await documentRepository.getById(documentId);
-            if (!doc || doc.is_folder || doc.is_deleted) {
+            if (!doc || doc.is_folder || doc.is_deleted) return;
+
+            if (!content || content.trim().length < 10) {
+                // Content is empty/too short — remove stale embedding if exists
+                await deleteEmbedding(documentId, userId || doc.owner_id);
                 return;
             }
 
-            await indexDocument(documentId, userId || doc.owner_id, doc.title, content.trim());
+            await indexDocument(documentId, userId || doc.owner_id, doc.vault_id, doc.title, content.trim());
         } catch (err) {
             logger.warn({ err, documentId }, 'Scheduled indexing failed');
         }
@@ -103,12 +105,16 @@ export function scheduleIndexing(documentId, ydoc, userId) {
 export async function indexDocumentNow(documentId, ydoc, userId) {
     try {
         const content = extractTextFromYDoc(ydoc);
-        if (!content || content.trim().length < 10) return;
 
         const doc = await documentRepository.getById(documentId);
         if (!doc || doc.is_folder || doc.is_deleted) return;
 
-        await indexDocument(documentId, userId || doc.owner_id, doc.title, content.trim());
+        if (!content || content.trim().length < 10) {
+            await deleteEmbedding(documentId, userId || doc.owner_id);
+            return;
+        }
+
+        await indexDocument(documentId, userId || doc.owner_id, doc.vault_id, doc.title, content.trim());
     } catch (err) {
         logger.warn({ err, documentId }, 'Immediate indexing failed');
     }

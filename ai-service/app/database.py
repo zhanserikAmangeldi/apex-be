@@ -26,6 +26,7 @@ async def init_db():
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 document_id UUID UNIQUE NOT NULL,
                 user_id UUID NOT NULL,
+                vault_id UUID NOT NULL,
                 title VARCHAR(500) DEFAULT '',
                 content_hash VARCHAR(64) NOT NULL,
                 embedding vector({settings.embedding_dimension}),
@@ -33,6 +34,12 @@ async def init_db():
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
+        """)
+
+        # Migrate: add vault_id if table existed without it
+        await conn.execute("""
+            ALTER TABLE document_embeddings
+            ADD COLUMN IF NOT EXISTS vault_id UUID;
         """)
 
         # HNSW index for fast cosine similarity search
@@ -46,6 +53,11 @@ async def init_db():
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_embeddings_user_id
             ON document_embeddings(user_id);
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_embeddings_vault_id
+            ON document_embeddings(vault_id);
         """)
 
     logger.info("Database initialized with pgvector")

@@ -7,14 +7,16 @@ from datetime import datetime
 
 class EmbedRequest(BaseModel):
     document_id: UUID
+    vault_id: UUID
     title: str = ""
     content: str
 
 
 class SemanticSearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=2000)
+    vault_id: UUID
     limit: int = Field(default=10, ge=1, le=50)
-    min_score: float = Field(default=0.15, ge=0.0, le=1.0)
+    min_score: float = Field(default=0.35, ge=0.0, le=1.0)
 
 
 class BatchEmbedRequest(BaseModel):
