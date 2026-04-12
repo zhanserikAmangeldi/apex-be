@@ -30,10 +30,19 @@ class Settings(BaseSettings):
 
     # YouTube API
     youtube_api_key: str = ""
-
-    # OpenAI (for chat)
+ 
+    # Chat AI Provider (openai, deepseek)
+    chat_provider: str = "openai"
+    
+    # OpenAI
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
+    openai_base_url: str = "https://api.openai.com/v1"
+    
+    # DeepSeek
+    deepseek_api_key: str = ""
+    deepseek_model: str = "deepseek-chat"
+    deepseek_base_url: str = "https://api.deepseek.com/v1"
 
     @property
     def database_url(self) -> str:

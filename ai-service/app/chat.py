@@ -1,4 +1,5 @@
 import logging
+from typing import Protocol
 from openai import AsyncOpenAI
 from app.config import settings
 from app.models import ChatMessage
@@ -6,29 +7,38 @@ from app.models import ChatMessage
 logger = logging.getLogger("ai-service")
 
 
-class ChatClient:
-    def __init__(self):
-        self.api_key = settings.openai_api_key
+class ChatProvider(Protocol):
+    """Protocol for chat providers."""
+    async def generate_response(
+        self,
+        messages: list[ChatMessage],
+        document_context: str = ""
+    ) -> str:
+        ...
+
+
+class OpenAIChatProvider:
+    """OpenAI and OpenAI-compatible providers (DeepSeek, etc.)."""
+    
+    def __init__(self, api_key: str, model: str, base_url: str):
+        self.api_key = api_key
+        self.model = model
         if not self.api_key:
-            logger.warning("OpenAI API key not configured")
+            logger.warning(f"API key not configured for {base_url}")
             self.client = None
         else:
-            self.client = AsyncOpenAI(api_key=self.api_key)
-        self.model = settings.openai_model
+            self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
     async def generate_response(
         self,
         messages: list[ChatMessage],
         document_context: str = ""
     ) -> str:
-        """Generate chat response with document context."""
         if not self.client:
-            raise ValueError("OpenAI API not configured")
+            raise ValueError("API not configured")
 
-        # Build messages for OpenAI
         openai_messages = []
         
-        # Add system message with document context
         if document_context:
             system_content = f"""You are a helpful AI assistant that helps students understand their study notes.
 
@@ -45,7 +55,6 @@ Your role:
 Keep responses concise and educational."""
             openai_messages.append({"role": "system", "content": system_content})
 
-        # Add conversation history
         for msg in messages:
             openai_messages.append({
                 "role": msg.role,
@@ -63,8 +72,41 @@ Keep responses concise and educational."""
             return response.choices[0].message.content
 
         except Exception as e:
-            logger.error(f"OpenAI API error: {e}")
+            logger.error(f"API error: {e}")
             raise
+
+
+class ChatClient:
+    """Unified chat client that delegates to the configured provider."""
+    
+    def __init__(self):
+        self.provider = self._create_provider()
+
+    def _create_provider(self) -> ChatProvider:
+        provider_name = settings.chat_provider.lower()
+        
+        if provider_name == "openai":
+            return OpenAIChatProvider(
+                api_key=settings.openai_api_key,
+                model=settings.openai_model,
+                base_url=settings.openai_base_url
+            )
+        elif provider_name == "deepseek":
+            return OpenAIChatProvider(
+                api_key=settings.deepseek_api_key,
+                model=settings.deepseek_model,
+                base_url=settings.deepseek_base_url
+            )
+        else:
+            raise ValueError(f"Unknown chat provider: {provider_name}. Use 'openai' or 'deepseek'")
+
+    async def generate_response(
+        self,
+        messages: list[ChatMessage],
+        document_context: str = ""
+    ) -> str:
+        """Generate chat response using configured provider."""
+        return await self.provider.generate_response(messages, document_context)
 
 
 # Singleton instance

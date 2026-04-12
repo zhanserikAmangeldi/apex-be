@@ -220,8 +220,13 @@ services:
       - EDITOR_SERVICE_URL=http://editor-service:${EDITOR_HTTP_PORT:-3000}
       - JWT_SECRET=${JWT_SECRET}
       - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
+      - CHAT_PROVIDER=${CHAT_PROVIDER:-openai}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
     ports:
       - "${AI_HTTP_PORT_FORWARD:-8090}:8090"
     healthcheck:
