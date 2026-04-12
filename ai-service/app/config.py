@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     # JWT
     jwt_secret: str = "your-super-secret-jwt-key-change-in-production-min-32-chars"
 
+    # YouTube API
+    youtube_api_key: str = ""
+
+    # OpenAI (for chat)
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+
     @property
     def database_url(self) -> str:
         return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"

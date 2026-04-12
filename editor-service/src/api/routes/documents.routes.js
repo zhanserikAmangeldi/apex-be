@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import * as Y from 'yjs';
 import { authenticateToken } from '../middleware/index.js';
 import { validateBody, validateParams } from '../validation/index.js';
 import {
@@ -558,6 +559,71 @@ router.get('/:id/attachments',
             }));
 
             res.json({ attachments: attachmentsWithUrls });
+        } catch (err) {
+            next(err);
+        }
+    }
+);
+
+/**
+ * GET /documents/:id/export/text - Export document as plain text
+ */
+router.get('/:id/export/text',
+    authenticateToken,
+    validateParams(documentIdParamSchema),
+    async (req, res, next) => {
+        try {
+            const { id } = req.params;
+
+            const hasAccess = await documentRepository.checkAccess(id, req.user.userId);
+            if (!hasAccess) {
+                throw new ForbiddenError('No access to this document');
+            }
+
+            const document = await documentRepository.getById(id);
+            if (!document) {
+                throw new NotFoundError('Document not found');
+            }
+
+            // Load document state
+            const state = await crdtService.loadDocumentState(id);
+            
+            // Convert Yjs document to text
+            const ydoc = new Y.Doc();
+            Y.applyUpdate(ydoc, state);
+            
+            // Extract text from prosemirror content
+            const xmlFragment = ydoc.getXmlFragment('prosemirror');
+            let text = '';
+            
+            const extractText = (node) => {
+                if (node._item && node._item.content) {
+                    const content = node._item.content;
+                    if (content.str) {
+                        text += content.str;
+                    }
+                }
+                
+                if (node._first) {
+                    let item = node._first;
+                    while (item) {
+                        if (item.content && item.content.str) {
+                            text += item.content.str;
+                        } else if (item.content && item.content.type) {
+                            extractText(item.content.type);
+                        }
+                        item = item.right;
+                    }
+                }
+            };
+            
+            extractText(xmlFragment);
+
+            res.json({
+                document_id: id,
+                title: document.title,
+                content: text.trim() || ''
+            });
         } catch (err) {
             next(err);
         }

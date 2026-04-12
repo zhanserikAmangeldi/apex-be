@@ -219,6 +219,9 @@ services:
       - ENV=${ENV:-development}
       - EDITOR_SERVICE_URL=http://editor-service:${EDITOR_HTTP_PORT:-3000}
       - JWT_SECRET=${JWT_SECRET}
+      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
     ports:
       - "${AI_HTTP_PORT_FORWARD:-8090}:8090"
     healthcheck:
