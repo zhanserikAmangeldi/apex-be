@@ -83,7 +83,7 @@ jobs:
 
           for service in $(echo $SERVICES | jq -r '.[]'); do
             echo "Updating apex-${service} to tag ${IMAGE_TAG}"
-            sed -i "s|newTag: .*# apex-${service}|newTag: ${IMAGE_TAG} # apex-${service}|" \
+            sed -i "s|newTag: .*# apex-${service}|newTag: \"${IMAGE_TAG}\" # apex-${service}|" \
               k8s/overlays/k3s-prod/kustomization.yaml
           done
 
