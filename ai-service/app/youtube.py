@@ -17,13 +17,11 @@ class YouTubeClient:
             self.youtube = build('youtube', 'v3', developerKey=self.api_key)
 
     def search_videos(self, query: str, max_results: int = 5) -> list[VideoResult]:
-        """Search YouTube videos by query."""
         if not self.youtube:
             logger.error("YouTube API not initialized")
             return []
 
         try:
-            # Search for videos
             search_response = self.youtube.search().list(
                 q=query,
                 part='id,snippet',
@@ -40,13 +38,11 @@ class YouTubeClient:
             if not video_ids:
                 return []
 
-            # Get video details (duration, views)
             videos_response = self.youtube.videos().list(
                 part='contentDetails,statistics',
                 id=','.join(video_ids)
             ).execute()
 
-            # Create mapping of video details
             video_details = {
                 item['id']: item
                 for item in videos_response.get('items', [])
@@ -79,7 +75,6 @@ class YouTubeClient:
             return []
 
 
-# Singleton instance
 _youtube_client = None
 
 

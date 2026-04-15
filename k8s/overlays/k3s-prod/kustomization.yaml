@@ -6,29 +6,27 @@ namespace: apex-prod
 resources:
   - ../../base
 
-# Docker Hub образы
 images:
   - name: apex/api-gateway
     newName: zhanserik05/apex-api-gateway
-    newTag: bded063 # apex-api-gateway
+    newTag: bded063
   - name: apex/user-service
     newName: zhanserik05/apex-user-service
-    newTag: bded063 # apex-user-service
+    newTag: bded063
   - name: apex/editor-service
     newName: zhanserik05/apex-editor-service
-    newTag: bded063 # apex-editor-service
+    newTag: bded063
   - name: apex/ai-service
     newName: zhanserik05/apex-ai-service
-    newTag: bded063 # apex-ai-service
+    newTag: bded063
   - name: apex/content-scraper-service
     newName: zhanserik05/apex-content-scraper-service
-    newTag: bded063 # apex-content-scraper-service
+    newTag: bded063
   - name: apex/frontend
     newName: zhanserik05/apex-frontend
-    newTag: f668370 # apex-frontend
+    newTag: 4053e58
 
 patches:
-  # imagePullPolicy на Always для всех Deployments
   - target:
       kind: Deployment
     patch: |-
@@ -36,7 +34,6 @@ patches:
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Always
 
-  # imagePullSecrets для всех Deployments
   - target:
       kind: Deployment
     patch: |-
@@ -45,7 +42,6 @@ patches:
         value:
           - name: dockerhub-secret
 
-  # ===== ВСЕ replicas = 1 (экономия RAM на маленькой ноде) =====
   - target:
       kind: Deployment
       name: api-gateway
@@ -90,8 +86,6 @@ patches:
         value: 1
 
 
-  # ===== Минимальные resource requests для 2GB ноды =====
-  # Postgres instances: 64Mi request each
   - target:
       kind: StatefulSet
       name: user-postgres
@@ -145,7 +139,6 @@ patches:
             cpu: 500m
             memory: 512Mi
 
-  # Redis & MinIO
   - target:
       kind: Deployment
       name: redis
@@ -173,7 +166,6 @@ patches:
             cpu: 500m
             memory: 512Mi
 
-  # App services
   - target:
       kind: Deployment
       name: api-gateway
@@ -254,7 +246,6 @@ patches:
             memory: 64Mi
 
 
-  # PVC sizes
   - target:
       kind: PersistentVolumeClaim
       name: user-postgres-pvc
@@ -291,7 +282,6 @@ patches:
         path: /spec/resources/requests/storage
         value: 20Gi
 
-  # Ingress override
   - target:
       kind: Ingress
       name: apex-ingress

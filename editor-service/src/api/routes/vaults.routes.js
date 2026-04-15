@@ -13,9 +13,6 @@ import { apiLogger, logAudit } from '../../services/logger.service.js';
 
 const router = Router();
 
-/**
- * GET /vaults - Get all user's vaults
- */
 router.get('/', authenticateToken, async (req, res, next) => {
     try {
         const vaults = await vaultRepository.getAllByUserId(req.user.userId);
@@ -31,9 +28,6 @@ router.get('/', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * GET /vaults/shared - Get vaults shared with user
- */
 router.get('/shared', authenticateToken, async (req, res, next) => {
     try {
         const vaults = await vaultRepository.getSharedWithUser(req.user.userId);
@@ -49,9 +43,6 @@ router.get('/shared', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * POST /vaults - Create new vault
- */
 router.post('/',
     authenticateToken,
     validateBody(createVaultSchema),
@@ -79,9 +70,6 @@ router.post('/',
     }
 );
 
-/**
- * GET /vaults/:id - Get vault by ID
- */
 router.get('/:id',
     authenticateToken,
     validateParams(vaultIdParamSchema),
@@ -102,9 +90,6 @@ router.get('/:id',
     }
 );
 
-/**
- * PUT /vaults/:id - Update vault
- */
 router.put('/:id',
     authenticateToken,
     validateParams(vaultIdParamSchema),
@@ -138,9 +123,6 @@ router.put('/:id',
     }
 );
 
-/**
- * PATCH /vaults/:id - Partial update vault
- */
 router.patch('/:id',
     authenticateToken,
     validateParams(vaultIdParamSchema),
@@ -174,9 +156,6 @@ router.patch('/:id',
     }
 );
 
-/**
- * DELETE /vaults/:id - Delete vault
- */
 router.delete('/:id',
     authenticateToken,
     validateParams(vaultIdParamSchema),
@@ -199,9 +178,6 @@ router.delete('/:id',
     }
 );
 
-/**
- * GET /vaults/:id/documents - Get all documents in vault
- */
 router.get('/:id/documents',
     authenticateToken,
     validateParams(vaultIdParamSchema),
@@ -222,9 +198,6 @@ router.get('/:id/documents',
     }
 );
 
-/**
- * POST /vaults/:id/documents - Create document in vault
- */
 router.post('/:id/documents',
     authenticateToken,
     validateParams(vaultIdParamSchema),
@@ -246,26 +219,22 @@ router.post('/:id/documents',
                 isFolder || false
             );
 
-            // If content is provided, save it directly as Y.Doc update
             if (content && !isFolder) {
                 const Y = await import('yjs');
                 const ydoc = new Y.Doc();
                 const xmlFragment = ydoc.getXmlFragment('default');
                 
-                // Parse markdown-like content and create proper structure
                 const lines = content.split('\n');
                 
                 for (const line of lines) {
                     const trimmed = line.trim();
                     
                     if (!trimmed) {
-                        // Empty line - create empty paragraph
                         const paragraph = new Y.XmlElement('paragraph');
                         xmlFragment.push([paragraph]);
                         continue;
                     }
                     
-                    // Check for heading (# Title)
                     const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
                     if (headingMatch) {
                         const level = headingMatch[1].length;
@@ -279,14 +248,12 @@ router.post('/:id/documents',
                         continue;
                     }
                     
-                    // Check for horizontal rule (---)
                     if (trimmed === '---' || trimmed === '***') {
                         const hr = new Y.XmlElement('horizontalRule');
                         xmlFragment.push([hr]);
                         continue;
                     }
                     
-                    // Check for list item (- item or * item)
                     const listMatch = trimmed.match(/^[-*]\s+(.+)$/);
                     if (listMatch) {
                         const text = listMatch[1];
@@ -303,30 +270,24 @@ router.post('/:id/documents',
                         continue;
                     }
                     
-                    // Regular paragraph - handle bold (**text**) and links ([text](url))
                     const paragraph = new Y.XmlElement('paragraph');
                     
-                    // Parse inline formatting (bold and links)
                     let remaining = trimmed;
                     const tokens = [];
                     
-                    // Extract bold and links
                     const regex = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g;
                     let lastIndex = 0;
                     let match;
                     
                     while ((match = regex.exec(remaining)) !== null) {
-                        // Add text before match
                         if (match.index > lastIndex) {
                             tokens.push({ type: 'text', content: remaining.slice(lastIndex, match.index) });
                         }
                         
                         const matched = match[0];
                         if (matched.startsWith('**') && matched.endsWith('**')) {
-                            // Bold text
                             tokens.push({ type: 'bold', content: matched.slice(2, -2) });
                         } else if (matched.startsWith('[')) {
-                            // Link [text](url)
                             const linkMatch = matched.match(/\[([^\]]+)\]\(([^)]+)\)/);
                             if (linkMatch) {
                                 tokens.push({ type: 'link', text: linkMatch[1], href: linkMatch[2] });
@@ -336,18 +297,15 @@ router.post('/:id/documents',
                         lastIndex = regex.lastIndex;
                     }
                     
-                    // Add remaining text
                     if (lastIndex < remaining.length) {
                         tokens.push({ type: 'text', content: remaining.slice(lastIndex) });
                     }
                     
-                    // If no tokens, just add plain text
                     if (tokens.length === 0) {
                         const textNode = new Y.XmlText();
                         textNode.insert(0, trimmed);
                         paragraph.push([textNode]);
                     } else {
-                        // Build paragraph with formatted tokens
                         for (const token of tokens) {
                             if (token.type === 'text' && token.content) {
                                 const textNode = new Y.XmlText();
@@ -374,7 +332,6 @@ router.post('/:id/documents',
                 const { crdtService } = await import('../../services/crdt.service.js');
                 await crdtService.saveUpdate(document.id, update);
                 
-                // Schedule AI indexing for the new document
                 const { indexDocumentNow } = await import('../../services/ai-indexer.service.js');
                 indexDocumentNow(document.id, ydoc, req.user.userId).catch(err => {
                     console.warn('Failed to index new document:', err);
@@ -394,9 +351,6 @@ router.post('/:id/documents',
     }
 );
 
-/**
- * POST /vaults/:id/share - Share vault with user
- */
 router.post('/:id/share',
     authenticateToken,
     validateParams(vaultIdParamSchema),
@@ -461,9 +415,6 @@ router.post('/:id/share',
     }
 );
 
-/**
- * DELETE /vaults/:id/share/:userId - Remove user access
- */
 router.delete('/:id/share/:userId',
     authenticateToken,
     async (req, res, next) => {
@@ -498,9 +449,6 @@ router.delete('/:id/share/:userId',
     }
 );
 
-/**
- * PATCH /vaults/:id/share/:userId - Update user permission
- */
 router.patch('/:id/share/:userId',
     authenticateToken,
     async (req, res, next) => {
@@ -540,9 +488,6 @@ router.patch('/:id/share/:userId',
     }
 );
 
-/**
- * GET /vaults/:id/collaborators - Get vault collaborators
- */
 router.get('/:id/collaborators',
     authenticateToken,
     validateParams(vaultIdParamSchema),

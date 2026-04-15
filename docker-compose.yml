@@ -1,7 +1,4 @@
 services:
-  # ===========================================
-  # DATABASES
-  # ===========================================
   user-postgres:
     image: postgres:17
     container_name: user-postgres
@@ -40,9 +37,6 @@ services:
     networks:
       - apex-network
 
-  # ===========================================
-  # CACHE & MESSAGE BROKER
-  # ===========================================
   redis:
     image: redis:7-alpine
     container_name: redis
@@ -59,9 +53,6 @@ services:
     networks:
       - apex-network
 
-  # ===========================================
-  # OBJECT STORAGE
-  # ===========================================
   minio:
     image: minio/minio
     container_name: minio
@@ -83,9 +74,6 @@ services:
     networks:
       - apex-network
 
-  # ===========================================
-  # APPLICATION SERVICES
-  # ===========================================
   user-service:
     build: ./user-service
     container_name: user-service
@@ -180,9 +168,6 @@ services:
     networks:
       - apex-network
 
-  # ===========================================
-  # CONTENT SCRAPER SERVICE
-  # ===========================================
   scraper-postgres:
     image: postgres:17
     container_name: scraper-postgres
@@ -229,9 +214,6 @@ services:
     networks:
       - apex-network
 
-  # ===========================================
-  # AI SERVICE
-  # ===========================================
   ai-postgres:
     image: pgvector/pgvector:pg17
     container_name: ai-postgres
@@ -287,9 +269,6 @@ services:
     networks:
       - apex-network
 
-  # ===========================================
-  # API GATEWAY
-  # ===========================================
   api-gateway:
     build: ./api-gateway
     container_name: api-gateway

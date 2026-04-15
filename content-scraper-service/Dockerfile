@@ -1,9 +1,7 @@
-# Build: linux/amd64 1
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
 RUN apt-get update && apt-get install -y \
     wget \
     curl \
@@ -35,12 +33,10 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers (skip deps installation on ARM)
 RUN playwright install chromium || true
 
 COPY . .
 
-# Make startup script executable
 RUN chmod +x start.sh
 
 CMD ["./start.sh"]

@@ -19,12 +19,10 @@ class BatchEmbeddingResponse(BaseModel):
 
 @router.post("/embeddings", response_model=EmbeddingResponse)
 async def create_embedding(request: EmbeddingRequest):
-    """Generate embedding for a single text"""
     embedding = generate_embedding(request.text)
     return EmbeddingResponse(embedding=embedding)
 
 @router.post("/embeddings/batch", response_model=BatchEmbeddingResponse)
 async def create_embeddings_batch(request: BatchEmbeddingRequest):
-    """Generate embeddings for multiple texts"""
     embeddings = generate_embeddings_batch(request.texts)
     return BatchEmbeddingResponse(embeddings=embeddings)

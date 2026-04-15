@@ -2,7 +2,6 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # Database
     db_host: str = "ai-postgres"
     db_port: int = 5432
     db_user: str = "ai-service"
@@ -10,36 +9,27 @@ class Settings(BaseSettings):
     db_name: str = "ai_service"
     db_max_connections: int = 10
 
-    # Model
     embedding_model: str = "all-MiniLM-L6-v2"
     embedding_dimension: int = 384
 
-    # Search
     default_search_limit: int = 10
     min_similarity_score: float = 0.15
 
-    # Service
     port: int = 8090
     env: str = "development"
 
-    # Editor service (for fetching document content)
     editor_service_url: str = "http://editor-service:3000"
 
-    # JWT
     jwt_secret: str = "your-super-secret-jwt-key-change-in-production-min-32-chars"
 
-    # YouTube API
     youtube_api_key: str = ""
  
-    # Chat AI Provider (openai, deepseek)
     chat_provider: str = "openai"
     
-    # OpenAI
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     openai_base_url: str = "https://api.openai.com/v1"
     
-    # DeepSeek
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-chat"
     deepseek_base_url: str = "https://api.deepseek.com/v1"

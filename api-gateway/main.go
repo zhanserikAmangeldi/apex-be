@@ -153,7 +153,6 @@ func main() {
 		}
 
 		scraper := api.Group("/scraper-service")
-		// Scraper service не требует авторизацию для базовых операций
 		{
 			scraper.Any("/*path", proxyRequest(scraperServiceURL, 30*time.Second))
 		}

@@ -9,9 +9,6 @@ const router = Router();
 
 const VALID_TYPES = ['related', 'supports', 'contradicts', 'extends', 'references', 'inspired_by'];
 
-/**
- * POST /connections - Create a connection between two notes
- */
 router.post('/', authenticateToken, async (req, res, next) => {
     try {
         const { sourceNoteId, targetNoteId, connectionType = 'related', description, isInline = false } = req.body;
@@ -59,9 +56,6 @@ router.post('/', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * GET /connections/note/:noteId - Get all connections for a note
- */
 router.get('/note/:noteId', authenticateToken, async (req, res, next) => {
     try {
         const { noteId } = req.params;
@@ -77,9 +71,6 @@ router.get('/note/:noteId', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * GET /connections/vault/:vaultId - Get all connections in a vault (for graph)
- */
 router.get('/vault/:vaultId', authenticateToken, async (req, res, next) => {
     try {
         const { vaultId } = req.params;
@@ -90,9 +81,6 @@ router.get('/vault/:vaultId', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * PUT /connections/:id - Update a connection
- */
 router.put('/:id', authenticateToken, async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -116,9 +104,6 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * DELETE /connections/inline/:sourceId/:targetId - Delete an inline connection when link is removed from editor
- */
 router.delete('/inline/:sourceId/:targetId', authenticateToken, async (req, res, next) => {
     try {
         const { sourceId, targetId } = req.params;
@@ -135,9 +120,6 @@ router.delete('/inline/:sourceId/:targetId', authenticateToken, async (req, res,
     }
 });
 
-/**
- * DELETE /connections/:id - Delete a connection
- */
 router.delete('/:id', authenticateToken, async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -156,9 +138,6 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * GET /connections/types - Get available connection types
- */
 router.get('/types', authenticateToken, (req, res) => {
     res.json({
         types: VALID_TYPES.map(type => ({

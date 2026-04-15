@@ -19,19 +19,16 @@ def get_model() -> SentenceTransformer:
 
 
 def generate_embedding(text: str) -> list[float]:
-    """Generate embedding vector for a text string."""
     model = get_model()
     embedding = model.encode(text, normalize_embeddings=True)
     return embedding.tolist()
 
 
 def generate_embeddings_batch(texts: list[str]) -> list[list[float]]:
-    """Generate embeddings for multiple texts at once."""
     model = get_model()
     embeddings = model.encode(texts, normalize_embeddings=True, batch_size=32)
     return [e.tolist() for e in embeddings]
 
 
 def content_hash(text: str) -> str:
-    """SHA-256 hash of content to detect changes."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()

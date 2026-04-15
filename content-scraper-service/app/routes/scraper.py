@@ -38,9 +38,6 @@ async def scrape_url(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
-    """Scrape content from URL with AI processing and document creation"""
-    
-    # Validate user_id is a valid UUID
     try:
         user_uuid = uuid.UUID(request.user_id)
     except ValueError:
@@ -50,14 +47,12 @@ async def scrape_url(
     domain = urlparse(str(request.url)).netloc
     
     try:
-        # 1. Scrape content
         result = await scraper.scrape(
             url=str(request.url),
             user_id=request.user_id,
             domain=domain
         )
         
-        # 2. Generate AI notes if requested
         ai_notes = None
         ai_summary = None
         ai_key_points = None
@@ -73,12 +68,10 @@ async def scrape_url(
             except Exception as e:
                 print(f"AI processing failed: {e}")
         
-        # 3. Calculate next scrape time if periodic
         next_scrape_at = None
         if request.periodic:
             next_scrape_at = datetime.utcnow() + timedelta(hours=request.interval_hours)
         
-        # 4. Save scraped content
         content = ScrapedContent(
             user_id=user_uuid,
             url=str(request.url),
@@ -102,7 +95,6 @@ async def scrape_url(
         await db.commit()
         await db.refresh(content)
         
-        # 5. Create document in editor service if requested
         document_id = None
         if request.create_document and result.get("content"):
             try:
@@ -116,13 +108,11 @@ async def scrape_url(
                 )
                 document_id = document.get("id")
                 
-                # Update content with document_id
                 content.document_id = uuid.UUID(document_id)
                 await db.commit()
             except Exception as e:
                 print(f"Document creation failed: {e}")
         
-        # 6. Generate embeddings in background
         if result.get("content"):
             background_tasks.add_task(
                 generate_embeddings_task,
@@ -131,7 +121,6 @@ async def scrape_url(
                 text=result["content"]
             )
         
-        # 7. Schedule periodic scraping if requested
         if request.periodic:
             background_tasks.add_task(
                 schedule_periodic_scrape,
@@ -158,7 +147,6 @@ async def get_content(
     content_id: str,
     db: AsyncSession = Depends(get_db)
 ):
-    """Get scraped content by ID"""
     stmt = select(ScrapedContent).where(ScrapedContent.id == uuid.UUID(content_id))
     result = await db.execute(stmt)
     content = result.scalar_one_or_none()
@@ -181,7 +169,6 @@ async def get_user_content(
     user_id: str,
     db: AsyncSession = Depends(get_db)
 ):
-    """Get all scraped content for a user"""
     try:
         user_uuid = uuid.UUID(user_id)
     except ValueError:
@@ -205,19 +192,15 @@ async def get_user_content(
 
 
 async def generate_embeddings_task(content_id: str, user_id: str, text: str):
-    """Background task to generate embeddings for content"""
     from app.models import ContentEmbedding
     from app.database import async_session_maker
     
-    # Split text into chunks (max 500 chars per chunk)
     chunk_size = 500
     chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
     
-    # Generate embeddings
     try:
         embeddings = await ai_service.generate_embeddings(chunks)
         
-        # Save to database
         async with async_session_maker() as db:
             for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                 emb = ContentEmbedding(
@@ -239,7 +222,6 @@ async def search_content(
     limit: int = 10,
     db: AsyncSession = Depends(get_db)
 ):
-    """Search content using vector similarity"""
     from app.models import ContentEmbedding
     import numpy as np
     
@@ -248,39 +230,33 @@ async def search_content(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid user_id format: must be a valid UUID")
     
-    # Generate query embedding
     query_embeddings = await ai_service.generate_embeddings([query])
     query_embedding = query_embeddings[0]
     
-    # Get all user embeddings
     stmt = select(ContentEmbedding).where(
         ContentEmbedding.user_id == user_uuid
     )
     result = await db.execute(stmt)
     embeddings = result.scalars().all()
     
-    # Calculate cosine similarity
     results = []
     for emb in embeddings:
         similarity = cosine_similarity(query_embedding, emb.embedding)
-        if similarity > 0.3:  # Threshold
+        if similarity > 0.3:
             results.append({
                 "content_id": str(emb.content_id),
                 "chunk_text": emb.chunk_text,
                 "similarity": similarity
             })
     
-    # Sort by similarity
     results.sort(key=lambda x: x["similarity"], reverse=True)
     
-    # Get unique content IDs
     seen_ids = set()
     unique_results = []
     for r in results[:limit]:
         if r["content_id"] not in seen_ids:
             seen_ids.add(r["content_id"])
             
-            # Get full content
             stmt = select(ScrapedContent).where(
                 ScrapedContent.id == uuid.UUID(r["content_id"])
             )
@@ -300,7 +276,6 @@ async def search_content(
     return unique_results
 
 def cosine_similarity(a: list, b: list) -> float:
-    """Calculate cosine similarity between two vectors"""
     import numpy as np
     a = np.array(a)
     b = np.array(b)

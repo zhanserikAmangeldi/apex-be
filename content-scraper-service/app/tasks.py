@@ -1,15 +1,12 @@
-"""Background tasks for content scraper (no Celery dependency)"""
 from app.config import settings
 import asyncio
 
 
 async def schedule_periodic_scrape(content_id: str, url: str, user_id: str, interval_hours: int):
-    """Schedule periodic scraping — runs as FastAPI background task"""
     pass
 
 
 async def check_and_scrape_periodic():
-    """Check for content that needs to be re-scraped"""
     from app.database import async_session_maker
     from app.models import ScrapedContent
     from app.scrapers.strategy import ScraperStrategy

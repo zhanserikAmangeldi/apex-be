@@ -23,7 +23,6 @@ logger = logging.getLogger("ai-service")
 async def lifespan(app: FastAPI):
     logger.info(f"Starting AI Service (env={settings.env})")
     await init_db()
-    # Pre-load model on startup
     get_model()
     logger.info("AI Service ready")
     yield

@@ -8,7 +8,6 @@ logger = logging.getLogger("ai-service")
 
 
 class ChatProvider(Protocol):
-    """Protocol for chat providers."""
     async def generate_response(
         self,
         messages: list[ChatMessage],
@@ -18,7 +17,6 @@ class ChatProvider(Protocol):
 
 
 class OpenAIChatProvider:
-    """OpenAI and OpenAI-compatible providers (DeepSeek, etc.)."""
     
     def __init__(self, api_key: str, model: str, base_url: str):
         self.api_key = api_key
@@ -77,7 +75,6 @@ Keep responses concise and educational."""
 
 
 class ChatClient:
-    """Unified chat client that delegates to the configured provider."""
     
     def __init__(self):
         self.provider = self._create_provider()
@@ -105,11 +102,9 @@ class ChatClient:
         messages: list[ChatMessage],
         document_context: str = ""
     ) -> str:
-        """Generate chat response using configured provider."""
         return await self.provider.generate_response(messages, document_context)
 
 
-# Singleton instance
 _chat_client = None
 
 

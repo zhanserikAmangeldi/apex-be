@@ -19,9 +19,6 @@ import { deleteEmbedding } from '../../services/ai-indexer.service.js';
 
 const router = Router();
 
-/**
- * GET /documents - Get all user's documents
- */
 router.get('/', authenticateToken, async (req, res, next) => {
     try {
         const documents = await documentRepository.getAllByUserId(req.user.userId);
@@ -37,9 +34,6 @@ router.get('/', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * GET /documents/shared - Get documents shared with user
- */
 router.get('/shared', authenticateToken, async (req, res, next) => {
     try {
         const documents = await documentRepository.getSharedWithUser(req.user.userId);
@@ -55,9 +49,6 @@ router.get('/shared', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * POST /documents - Create new document
- */
 router.post('/',
     authenticateToken,
     validateBody(createDocumentSchema),
@@ -73,25 +64,21 @@ router.post('/',
                 isFolder
             );
 
-            // If content is provided, save it directly as Y.Doc update
             if (content && !isFolder) {
                 const ydoc = new Y.Doc();
                 const xmlFragment = ydoc.getXmlFragment('default');
                 
-                // Parse markdown-like content and create proper structure
                 const lines = content.split('\n');
                 
                 for (const line of lines) {
                     const trimmed = line.trim();
                     
                     if (!trimmed) {
-                        // Empty line - create empty paragraph
                         const paragraph = new Y.XmlElement('paragraph');
                         xmlFragment.push([paragraph]);
                         continue;
                     }
                     
-                    // Check for heading (# Title)
                     const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
                     if (headingMatch) {
                         const level = headingMatch[1].length;
@@ -105,14 +92,12 @@ router.post('/',
                         continue;
                     }
                     
-                    // Check for horizontal rule (---)
                     if (trimmed === '---' || trimmed === '***') {
                         const hr = new Y.XmlElement('horizontalRule');
                         xmlFragment.push([hr]);
                         continue;
                     }
                     
-                    // Check for list item (- item or * item)
                     const listMatch = trimmed.match(/^[-*]\s+(.+)$/);
                     if (listMatch) {
                         const text = listMatch[1];
@@ -129,30 +114,24 @@ router.post('/',
                         continue;
                     }
                     
-                    // Regular paragraph - handle bold (**text**) and links ([text](url))
                     const paragraph = new Y.XmlElement('paragraph');
                     
-                    // Parse inline formatting (bold and links)
                     let remaining = trimmed;
                     const tokens = [];
                     
-                    // Extract bold and links
                     const regex = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g;
                     let lastIndex = 0;
                     let match;
                     
                     while ((match = regex.exec(remaining)) !== null) {
-                        // Add text before match
                         if (match.index > lastIndex) {
                             tokens.push({ type: 'text', content: remaining.slice(lastIndex, match.index) });
                         }
                         
                         const matched = match[0];
                         if (matched.startsWith('**') && matched.endsWith('**')) {
-                            // Bold text
                             tokens.push({ type: 'bold', content: matched.slice(2, -2) });
                         } else if (matched.startsWith('[')) {
-                            // Link [text](url)
                             const linkMatch = matched.match(/\[([^\]]+)\]\(([^)]+)\)/);
                             if (linkMatch) {
                                 tokens.push({ type: 'link', text: linkMatch[1], href: linkMatch[2] });
@@ -162,18 +141,15 @@ router.post('/',
                         lastIndex = regex.lastIndex;
                     }
                     
-                    // Add remaining text
                     if (lastIndex < remaining.length) {
                         tokens.push({ type: 'text', content: remaining.slice(lastIndex) });
                     }
                     
-                    // If no tokens, just add plain text
                     if (tokens.length === 0) {
                         const textNode = new Y.XmlText();
                         textNode.insert(0, trimmed);
                         paragraph.push([textNode]);
                     } else {
-                        // Build paragraph with formatted tokens
                         for (const token of tokens) {
                             if (token.type === 'text' && token.content) {
                                 const textNode = new Y.XmlText();
@@ -201,7 +177,6 @@ router.post('/',
                 
                 apiLogger.info('Initial content saved for document', { documentId: document.id, contentLength: content.length });
                 
-                // Schedule AI indexing for the new document
                 const { indexDocumentNow } = await import('../services/ai-indexer.service.js');
                 indexDocumentNow(document.id, ydoc, req.user.userId).catch(err => {
                     apiLogger.warn({ err, documentId: document.id }, 'Failed to index new document');
@@ -221,9 +196,6 @@ router.post('/',
     }
 );
 
-/**
- * GET /documents/:id - Get document by ID
- */
 router.get('/:id',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -244,9 +216,6 @@ router.get('/:id',
     }
 );
 
-/**
- * PUT /documents/:id - Update document
- */
 router.put('/:id',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -279,9 +248,6 @@ router.put('/:id',
     }
 );
 
-/**
- * PATCH /documents/:id - Partial update document
- */
 router.patch('/:id',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -314,9 +280,6 @@ router.patch('/:id',
     }
 );
 
-/**
- * DELETE /documents/:id - Delete document
- */
 router.delete('/:id',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -341,9 +304,6 @@ router.delete('/:id',
     }
 );
 
-/**
- * POST /documents/:id/move - Move document to different parent
- */
 router.post('/:id/move',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -376,9 +336,6 @@ router.post('/:id/move',
     }
 );
 
-/**
- * GET /documents/:id/stats - Get document statistics
- */
 router.get('/:id/stats',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -399,9 +356,6 @@ router.get('/:id/stats',
     }
 );
 
-/**
- * POST /documents/:id/snapshot - Force create snapshot
- */
 router.post('/:id/snapshot',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -431,9 +385,6 @@ router.post('/:id/snapshot',
     }
 );
 
-/**
- * POST /documents/:id/share - Share document with user
- */
 router.post('/:id/share',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -512,9 +463,6 @@ router.post('/:id/share',
     }
 );
 
-/**
- * DELETE /documents/:id/share/:userId - Remove user access
- */
 router.delete('/:id/share/:userId',
     authenticateToken,
     async (req, res, next) => {
@@ -549,9 +497,6 @@ router.delete('/:id/share/:userId',
     }
 );
 
-/**
- * GET /documents/:id/collaborators - Get document collaborators
- */
 router.get('/:id/collaborators',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -623,9 +568,6 @@ router.get('/:id/collaborators',
     }
 );
 
-/**
- * PATCH /documents/:id/share/:userId - Update user permission
- */
 router.patch('/:id/share/:userId',
     authenticateToken,
     async (req, res, next) => {
@@ -665,9 +607,6 @@ router.patch('/:id/share/:userId',
     }
 );
 
-/**
- * GET /documents/:id/attachments - Get all attachments for document
- */
 router.get('/:id/attachments',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -700,9 +639,6 @@ router.get('/:id/attachments',
     }
 );
 
-/**
- * GET /documents/:id/export/text - Export document as plain text
- */
 router.get('/:id/export/text',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -720,14 +656,11 @@ router.get('/:id/export/text',
                 throw new NotFoundError('Document not found');
             }
 
-            // Load document state
             const state = await crdtService.loadDocumentState(id);
             
-            // Convert Yjs document to text
             const ydoc = new Y.Doc();
             Y.applyUpdate(ydoc, state);
             
-            // Extract text from default fragment (not prosemirror)
             const xmlFragment = ydoc.getXmlFragment('default');
             let text = '';
             

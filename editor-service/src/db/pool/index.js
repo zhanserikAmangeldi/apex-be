@@ -23,9 +23,6 @@ pool.on('connect', () => {
     console.log('New database connection established');
 });
 
-/**
- * Test database connection
- */
 export async function testConnection() {
     try {
         const result = await pool.query('SELECT NOW()');
@@ -37,9 +34,6 @@ export async function testConnection() {
     }
 }
 
-/**
- * Execute query with error handling
- */
 export async function query(text, params) {
     const start = Date.now();
     try {
@@ -57,17 +51,11 @@ export async function query(text, params) {
     }
 }
 
-/**
- * Get client for transactions
- */
 export async function getClient() {
     const client = await pool.connect();
     return client;
 }
 
-/**
- * Execute transaction
- */
 export async function transaction(callback) {
     const client = await pool.connect();
     try {

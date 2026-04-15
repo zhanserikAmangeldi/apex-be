@@ -12,11 +12,7 @@ except ImportError:
     print("WARNING: Playwright not available. Authenticated scraping will be disabled.")
 
 class AuthenticatedScraper:
-    """Scraper using saved user sessions"""
-    
     async def scrape_with_session(self, url: str, session: UserSiteSession) -> Dict:
-        """Scrape URL using saved session cookies"""
-        
         if not PLAYWRIGHT_AVAILABLE:
             raise Exception(
                 "Playwright is not available. "
@@ -24,26 +20,22 @@ class AuthenticatedScraper:
                 "Please install it: pip install playwright && playwright install chromium"
             )
         
-        # Decrypt cookies
         cookies = decrypt_data(session.encrypted_cookies)
         
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             context = await browser.new_context()
             
-            # Add cookies to context
             await context.add_cookies(cookies)
             
             page = await context.new_page()
             await page.goto(url, wait_until="networkidle")
             
-            # Get page content
             html = await page.content()
             title = await page.title()
             
             await browser.close()
         
-        # Extract clean text
         content = trafilatura.extract(
             html,
             include_comments=False,
@@ -51,7 +43,6 @@ class AuthenticatedScraper:
             include_links=True
         )
         
-        # Extract metadata
         soup = BeautifulSoup(html, 'lxml')
         metadata = self._extract_metadata(soup)
         
@@ -63,7 +54,6 @@ class AuthenticatedScraper:
         }
     
     def _extract_metadata(self, soup: BeautifulSoup) -> Dict:
-        """Extract metadata from HTML"""
         metadata = {}
         
         for tag in soup.find_all("meta", property=lambda x: x and x.startswith("og:")):

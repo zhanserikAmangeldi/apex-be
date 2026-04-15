@@ -31,22 +31,16 @@ async def capture_session(
     request: SessionCaptureRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    """Capture and store user session from browser extension"""
-    
-    # Validate user_id is a valid UUID
     try:
         user_uuid = uuid.UUID(request.user_id)
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid user_id format: must be a valid UUID")
     
-    # Convert Pydantic models to dict for encryption
     cookies_dict = [cookie.model_dump() for cookie in request.cookies]
     
-    # Encrypt sensitive data
     encrypted_cookies = encrypt_data(cookies_dict)
     encrypted_storage = encrypt_data(request.localStorage) if request.localStorage else None
     
-    # Calculate expiration (use shortest cookie expiration)
     expires_at = None
     if request.cookies:
         cookie_expires = [c.expires for c in request.cookies if c.expires]
@@ -54,22 +48,18 @@ async def capture_session(
             expires_at = datetime.fromtimestamp(min(cookie_expires))
 
     
-    # Check if session already exists
     stmt = select(UserSiteSession).where(
         UserSiteSession.user_id == user_uuid,
         UserSiteSession.domain == request.domain
     )
     result = await db.execute(stmt)
     existing_session = result.scalar_one_or_none()
-    
     if existing_session:
-        # Update existing session
         existing_session.encrypted_cookies = encrypted_cookies
         existing_session.encrypted_local_storage = encrypted_storage
         existing_session.expires_at = expires_at
         existing_session.last_used = datetime.utcnow()
     else:
-        # Create new session
         session = UserSiteSession(
             user_id=user_uuid,
             domain=request.domain,
@@ -88,7 +78,6 @@ async def get_user_sessions(
     user_id: str,
     db: AsyncSession = Depends(get_db)
 ):
-    """Get all saved sessions for a user"""
     try:
         user_uuid = uuid.UUID(user_id)
     except ValueError:
@@ -114,7 +103,6 @@ async def delete_session(
     session_id: str,
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a saved session"""
     stmt = select(UserSiteSession).where(UserSiteSession.id == uuid.UUID(session_id))
     result = await db.execute(stmt)
     session = result.scalar_one_or_none()

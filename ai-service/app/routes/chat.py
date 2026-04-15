@@ -22,7 +22,6 @@ router = APIRouter(prefix="/api/v1", tags=["chat"])
 
 
 async def fetch_document_content(document_id: UUID, access_token: str) -> str:
-    """Fetch document content from editor service."""
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
@@ -44,11 +43,9 @@ async def fetch_document_content(document_id: UUID, access_token: str) -> str:
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat_with_document(body: ChatRequest, request: Request):
-    """Chat about a document with optional video recommendations."""
     user = get_user_from_headers(request)
     user_id = UUID(user["user_id"])
     
-    # Get access token for fetching document
     auth_header = request.headers.get("Authorization", "")
     access_token = auth_header.replace("Bearer ", "") if auth_header else ""
 
@@ -57,7 +54,6 @@ async def chat_with_document(body: ChatRequest, request: Request):
     youtube_client = get_youtube_client()
 
     async with pool.acquire() as conn:
-        # Get or create session
         if body.session_id:
             session = await conn.fetchrow(
                 "SELECT * FROM chat_sessions WHERE id = $1 AND user_id = $2",
@@ -67,7 +63,6 @@ async def chat_with_document(body: ChatRequest, request: Request):
                 raise HTTPException(status_code=404, detail="Session not found")
             session_id = body.session_id
         else:
-            # Create new session
             session_id = await conn.fetchval(
                 """INSERT INTO chat_sessions (user_id, document_id, title)
                    VALUES ($1, $2, $3)
@@ -75,7 +70,6 @@ async def chat_with_document(body: ChatRequest, request: Request):
                 user_id, body.document_id, "Chat about note"
             )
 
-        # Get conversation history
         history_rows = await conn.fetch(
             """SELECT role, content, metadata
                FROM chat_messages
@@ -94,21 +88,17 @@ async def chat_with_document(body: ChatRequest, request: Request):
             for row in history_rows
         ]
 
-        # Add user message to history
         user_message = ChatMessage(role="user", content=body.message)
         history.append(user_message)
 
-        # Save user message
         await conn.execute(
             """INSERT INTO chat_messages (session_id, role, content)
                VALUES ($1, $2, $3)""",
             session_id, "user", body.message
         )
 
-        # Fetch document content for context
         document_content = await fetch_document_content(body.document_id, access_token)
 
-        # Generate AI response
         try:
             ai_response_text = await chat_client.generate_response(
                 messages=history,
@@ -120,24 +110,20 @@ async def chat_with_document(body: ChatRequest, request: Request):
 
         assistant_message = ChatMessage(role="assistant", content=ai_response_text)
 
-        # Save assistant message
         await conn.execute(
             """INSERT INTO chat_messages (session_id, role, content)
                VALUES ($1, $2, $3)""",
             session_id, "assistant", ai_response_text
         )
 
-        # Search for relevant videos if requested
         videos = []
         if body.include_videos:
-            # Extract key topics from document title and user message
             doc_row = await conn.fetchrow(
                 "SELECT title FROM document_embeddings WHERE document_id = $1",
                 body.document_id
             )
             doc_title = doc_row["title"] if doc_row else ""
             
-            # Create search query combining document title and user question
             video_query = f"{doc_title} {body.message}"[:200]
             videos = youtube_client.search_videos(video_query, max_results=3)
 
@@ -150,7 +136,6 @@ async def chat_with_document(body: ChatRequest, request: Request):
 
 @router.get("/chat/sessions/{document_id}", response_model=list[ChatSession])
 async def get_document_chat_sessions(document_id: UUID, request: Request):
-    """Get all chat sessions for a document."""
     user = get_user_from_headers(request)
     user_id = UUID(user["user_id"])
 
@@ -195,8 +180,7 @@ async def get_document_chat_sessions(document_id: UUID, request: Request):
 
 @router.post("/videos/search", response_model=VideoSearchResponse)
 async def search_videos(body: VideoSearchRequest, request: Request):
-    """Search YouTube videos by query."""
-    get_user_from_headers(request)  # Verify authentication
+    get_user_from_headers(request)
     
     youtube_client = get_youtube_client()
     videos = youtube_client.search_videos(body.query, body.max_results)

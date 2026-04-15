@@ -26,17 +26,14 @@ class ScrapedContent(Base):
     title = Column(Text)
     content = Column(Text)
     html = Column(Text)
-    content_metadata = Column(JSON)  # Renamed from 'metadata'
+    content_metadata = Column(JSON)
     
-    # AI-generated fields
     ai_summary = Column(Text)
     ai_key_points = Column(JSON)
     ai_study_notes = Column(Text)
     
-    # Editor service integration
     document_id = Column(UUID(as_uuid=True), index=True)
     
-    # Periodic scraping
     is_periodic = Column(Boolean, default=False)
     scrape_interval_hours = Column(Integer)
     last_scraped_at = Column(DateTime, default=datetime.utcnow)

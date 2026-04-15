@@ -8,9 +8,6 @@ class SnapshotWorker {
         this.intervalId = null;
     }
 
-    /**
-     * Start the snapshot worker
-     */
     start() {
         if (this.isRunning) {
             console.log('Snapshot worker already running');
@@ -27,9 +24,6 @@ class SnapshotWorker {
         }, config.snapshot.workerInterval);
     }
 
-    /**
-     * Stop the snapshot worker
-     */
     stop() {
         if (!this.isRunning) {
             return;
@@ -45,9 +39,6 @@ class SnapshotWorker {
         console.log('Snapshot worker stopped');
     }
 
-    /**
-     * Process documents that need snapshots
-     */
     async processSnapshots() {
         try {
             const documentsNeedingSnapshot = await this.findDocumentsNeedingSnapshot();
@@ -70,9 +61,6 @@ class SnapshotWorker {
         }
     }
 
-    /**
-     * Find documents that have exceeded update threshold
-     */
     async findDocumentsNeedingSnapshot() {
         const result = await pool.query(`
             SELECT document_id, COUNT(*) as update_count
@@ -86,9 +74,6 @@ class SnapshotWorker {
         return result.rows;
     }
 
-    /**
-     * Cleanup old expired sessions (run daily)
-     */
     async cleanupExpiredData() {
         try {
             const oldUpdatesResult = await pool.query(`
@@ -120,9 +105,6 @@ class SnapshotWorker {
         }
     }
 
-    /**
-     * Get worker statistics
-     */
     async getStats() {
         const result = await pool.query(`
             SELECT

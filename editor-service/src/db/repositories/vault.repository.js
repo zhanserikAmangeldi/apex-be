@@ -1,9 +1,6 @@
 import pool from '../pool/index.js';
 
 export class VaultRepository {
-    /**
-     * Create a new vault
-     */
     async create(ownerId, name, description = null, icon = '📁', color = '#6366f1') {
         const result = await pool.query(
             `INSERT INTO vaults (owner_id, name, description, icon, color)
@@ -14,9 +11,6 @@ export class VaultRepository {
         return result.rows[0];
     }
 
-    /**
-     * Get vault by ID with user permission
-     */
     async getByIdWithPermission(vaultId, userId) {
         const result = await pool.query(
             `SELECT v.*,
@@ -36,9 +30,6 @@ export class VaultRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Get all vaults accessible by user
-     */
     async getAllByUserId(userId) {
         const result = await pool.query(
             `SELECT v.*,
@@ -62,9 +53,6 @@ export class VaultRepository {
         return result.rows;
     }
 
-    /**
-     * Get vaults shared with user (not owned by user)
-     */
     async getSharedWithUser(userId) {
         const result = await pool.query(
             `SELECT v.*,
@@ -81,9 +69,6 @@ export class VaultRepository {
         return result.rows;
     }
 
-    /**
-     * Update vault
-     */
     async update(vaultId, ownerId, updates) {
         const { name, description, icon, color, settings } = updates;
         const result = await pool.query(
@@ -101,9 +86,6 @@ export class VaultRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Soft delete vault
-     */
     async delete(vaultId, ownerId) {
         const result = await pool.query(
             `UPDATE vaults
@@ -115,9 +97,6 @@ export class VaultRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Check user access to vault
-     */
     async checkAccess(vaultId, userId) {
         const result = await pool.query(
             `SELECT 1 FROM vaults
@@ -131,9 +110,6 @@ export class VaultRepository {
         return result.rows.length > 0;
     }
 
-    /**
-     * Check write access to vault
-     */
     async checkWriteAccess(vaultId, userId) {
         const result = await pool.query(
             `SELECT 1 FROM vaults
@@ -148,9 +124,6 @@ export class VaultRepository {
         return result.rows.length > 0;
     }
 
-    /**
-     * Share vault with user
-     */
     async share(vaultId, userId, permission) {
         const result = await pool.query(
             `INSERT INTO vault_permissions (vault_id, user_id, permission)
@@ -163,9 +136,6 @@ export class VaultRepository {
         return result.rows[0];
     }
 
-    /**
-     * Remove user access from vault
-     */
     async unshare(vaultId, userId) {
         const result = await pool.query(
             'DELETE FROM vault_permissions WHERE vault_id = $1 AND user_id = $2 RETURNING id',
@@ -174,9 +144,6 @@ export class VaultRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Get all collaborators of a vault
-     */
     async getCollaborators(vaultId) {
         const result = await pool.query(
             `SELECT vp.user_id, vp.permission, vp.created_at

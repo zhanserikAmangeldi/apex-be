@@ -14,9 +14,8 @@ import crypto from 'crypto';
 
 const router = Router();
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = [
-    // Images
     'image/jpeg',
     'image/png',
     'image/gif',
@@ -25,7 +24,6 @@ const ALLOWED_MIME_TYPES = [
     'image/bmp',
     'image/tiff',
     
-    // Documents
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -34,7 +32,6 @@ const ALLOWED_MIME_TYPES = [
     'application/vnd.ms-powerpoint',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     
-    // Text
     'text/plain',
     'text/csv',
     'text/html',
@@ -43,13 +40,11 @@ const ALLOWED_MIME_TYPES = [
     'text/markdown',
     'text/xml',
     
-    // Code
     'application/json',
     'application/xml',
     'application/javascript',
     'application/typescript',
     
-    // Archives
     'application/zip',
     'application/x-zip-compressed',
     'application/x-rar-compressed',
@@ -57,7 +52,6 @@ const ALLOWED_MIME_TYPES = [
     'application/gzip',
     'application/x-7z-compressed',
     
-    // Media
     'video/mp4',
     'video/mpeg',
     'video/quicktime',
@@ -66,13 +60,9 @@ const ALLOWED_MIME_TYPES = [
     'audio/wav',
     'audio/ogg',
     
-    // Other
-    'application/octet-stream', // Generic binary
+    'application/octet-stream',
 ];
 
-/**
- * POST /attachments/initiate - Initiate attachment upload
- */
 router.post('/initiate',
     authenticateToken,
     validateBody(initiateAttachmentUploadSchema),
@@ -128,9 +118,6 @@ router.post('/initiate',
     }
 );
 
-/**
- * PUT /attachments/:id/upload - Upload attachment file
- */
 router.put('/:id/upload',
     authenticateToken,
     validateParams(attachmentIdParamSchema),
@@ -197,9 +184,6 @@ router.put('/:id/upload',
     }
 );
 
-/**
- * GET /attachments/:id - Get attachment metadata and download URL
- */
 router.get('/:id',
     authenticateToken,
     validateParams(attachmentIdParamSchema),
@@ -236,9 +220,6 @@ router.get('/:id',
     }
 );
 
-/**
- * GET /attachments/:id/download - Download attachment file (proxy)
- */
 router.get('/:id/download',
     async (req, res, next) => {
         try {
@@ -313,9 +294,6 @@ router.get('/:id/download',
     }
 );
 
-/**
- * GET /documents/:documentId/attachments - Get all attachments for document
- */
 router.get('/documents/:documentId',
     authenticateToken,
     async (req, res, next) => {
@@ -358,9 +336,6 @@ router.get('/documents/:documentId',
     }
 );
 
-/**
- * DELETE /attachments/:id - Delete attachment
- */
 router.delete('/:id',
     authenticateToken,
     validateParams(attachmentIdParamSchema),

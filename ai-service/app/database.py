@@ -8,7 +8,6 @@ pool: asyncpg.Pool | None = None
 
 
 async def init_db():
-    """Create connection pool and initialize pgvector + tables."""
     global pool
     pool = await asyncpg.create_pool(
         dsn=settings.database_url,
@@ -17,10 +16,8 @@ async def init_db():
     )
 
     async with pool.acquire() as conn:
-        # Enable pgvector extension
         await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
 
-        # Create embeddings table
         await conn.execute(f"""
             CREATE TABLE IF NOT EXISTS document_embeddings (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -36,13 +33,11 @@ async def init_db():
             );
         """)
 
-        # Migrate: add vault_id if table existed without it
         await conn.execute("""
             ALTER TABLE document_embeddings
             ADD COLUMN IF NOT EXISTS vault_id UUID;
         """)
 
-        # HNSW index for fast cosine similarity search
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_embeddings_hnsw
             ON document_embeddings
@@ -60,7 +55,6 @@ async def init_db():
             ON document_embeddings(vault_id);
         """)
 
-        # Chat sessions table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS chat_sessions (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -82,7 +76,6 @@ async def init_db():
             ON chat_sessions(document_id);
         """)
 
-        # Chat messages table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS chat_messages (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

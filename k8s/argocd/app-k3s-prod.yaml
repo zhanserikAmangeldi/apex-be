@@ -10,7 +10,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/zhanserikAmangeldi/apex-be.git
-    targetRevision: master
+    targetRevision: main
     path: k8s/overlays/k3s-prod
   destination:
     server: https://kubernetes.default.svc

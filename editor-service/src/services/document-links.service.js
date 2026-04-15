@@ -1,8 +1,5 @@
 import * as Y from 'yjs';
 
-/**
- * Extract document link IDs from a Yjs document
- */
 export function extractDocumentLinks(doc) {
     try {
         const fragment = doc.getXmlFragment('default');
@@ -27,7 +24,7 @@ export function extractDocumentLinks(doc) {
         }
 
         traverse(fragment);
-        return [...new Set(links)]; // deduplicate
+        return [...new Set(links)];
     } catch (error) {
         console.error('Error extracting document links:', error);
         return [];

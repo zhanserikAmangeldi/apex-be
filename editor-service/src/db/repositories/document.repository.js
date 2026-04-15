@@ -1,9 +1,6 @@
 import pool from '../pool/index.js';
 
 export class DocumentRepository {
-    /**
-     * Create a new document
-     */
     async create(ownerId, title, vaultId = null, parentId = null, isFolder = false) {
         const result = await pool.query(
             `INSERT INTO documents (owner_id, vault_id, parent_id, title, is_folder)
@@ -14,9 +11,6 @@ export class DocumentRepository {
         return result.rows[0];
     }
 
-    /**
-     * Get document by ID
-     */
     async getById(documentId) {
         const result = await pool.query(
             `SELECT * FROM documents WHERE id = $1 AND is_deleted = false`,
@@ -25,9 +19,6 @@ export class DocumentRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Get document with user permission
-     */
     async getByIdWithPermission(documentId, userId) {
         const result = await pool.query(
             `SELECT d.*,
@@ -50,9 +41,6 @@ export class DocumentRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Get all documents for a user
-     */
     async getAllByUserId(userId) {
         const result = await pool.query(
             `SELECT d.id, d.title, d.created_at, d.updated_at,
@@ -66,9 +54,6 @@ export class DocumentRepository {
         return result.rows;
     }
 
-    /**
-     * Get documents shared with user
-     */
     async getSharedWithUser(userId) {
         const result = await pool.query(
             `SELECT d.id, d.title, d.created_at, d.updated_at,
@@ -84,9 +69,6 @@ export class DocumentRepository {
         return result.rows;
     }
 
-    /**
-     * Get documents in vault with user permissions
-     */
     async getByVaultId(vaultId, userId) {
         const result = await pool.query(
             `SELECT d.id, d.vault_id, d.parent_id, d.owner_id, d.title, d.icon, d.is_folder,
@@ -107,9 +89,6 @@ export class DocumentRepository {
         return result.rows;
     }
 
-    /**
-     * Update document title
-     */
     async updateTitle(documentId, ownerId, title) {
         const result = await pool.query(
             `UPDATE documents
@@ -121,9 +100,6 @@ export class DocumentRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Update document metadata
-     */
     async update(documentId, updates) {
         const { title, icon, parentId } = updates;
         const result = await pool.query(
@@ -139,9 +115,6 @@ export class DocumentRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Move document to different parent
-     */
     async move(documentId, parentId) {
         const result = await pool.query(
             `UPDATE documents
@@ -153,9 +126,6 @@ export class DocumentRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Soft delete document
-     */
     async delete(documentId, ownerId) {
         const result = await pool.query(
             `UPDATE documents
@@ -167,9 +137,6 @@ export class DocumentRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Update snapshot info
-     */
     async updateSnapshotInfo(documentId, storage, sizeBytes) {
         await pool.query(
             `UPDATE documents
@@ -181,9 +148,6 @@ export class DocumentRepository {
         );
     }
 
-    /**
-     * Update last activity timestamp
-     */
     async touch(documentId) {
         await pool.query(
             'UPDATE documents SET updated_at = NOW() WHERE id = $1',
@@ -191,9 +155,6 @@ export class DocumentRepository {
         );
     }
 
-    /**
-     * Check if document exists and is active
-     */
     async exists(documentId) {
         const result = await pool.query(
             'SELECT 1 FROM documents WHERE id = $1 AND is_deleted = false',
@@ -202,9 +163,6 @@ export class DocumentRepository {
         return result.rows.length > 0;
     }
 
-    /**
-     * Check user access to document
-     */
     async checkAccess(documentId, userId) {
         const result = await pool.query(
             `SELECT 1 FROM documents d
@@ -218,9 +176,6 @@ export class DocumentRepository {
         return result.rows.length > 0;
     }
 
-    /**
-     * Check write access
-     */
     async checkWriteAccess(documentId, userId) {
         const result = await pool.query(
             `SELECT 1 FROM documents d
@@ -242,9 +197,6 @@ export class DocumentRepository {
         return result.rows.length > 0;
     }
 
-    /**
-     * Share document with user
-     */
     async share(documentId, userId, permission) {
         const result = await pool.query(
             `INSERT INTO document_permissions (document_id, user_id, permission)
@@ -257,9 +209,6 @@ export class DocumentRepository {
         return result.rows[0];
     }
 
-    /**
-     * Remove user access from document
-     */
     async unshare(documentId, userId) {
         const result = await pool.query(
             'DELETE FROM document_permissions WHERE document_id = $1 AND user_id = $2 RETURNING id',
@@ -268,9 +217,6 @@ export class DocumentRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Get all collaborators of a document
-     */
     async getCollaborators(documentId) {
         const result = await pool.query(
             `SELECT dp.user_id, dp.permission, dp.created_at
@@ -282,9 +228,6 @@ export class DocumentRepository {
         return result.rows;
     }
 
-    /**
-     * Update user permission for document
-     */
     async updatePermission(documentId, userId, permission) {
         const result = await pool.query(
             `UPDATE document_permissions
@@ -296,9 +239,6 @@ export class DocumentRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Check if user is document owner
-     */
     async isOwner(documentId, userId) {
         const result = await pool.query(
             `SELECT 1 FROM documents WHERE id = $1 AND owner_id = $2`,
@@ -307,9 +247,6 @@ export class DocumentRepository {
         return result.rows.length > 0;
     }
 
-    /**
-     * Search documents by title
-     */
     async searchByTitle(userId, query, vaultId = null, limit = 10) {
         const searchPattern = `%${query}%`;
         
@@ -336,11 +273,11 @@ export class DocumentRepository {
         const params = [userId, searchPattern];
         
         if (vaultId) {
-            sql += ` AND d.vault_id = $${params.length + 1}`;
+            sql += ` AND d.vault_id = ${params.length + 1}`;
             params.push(vaultId);
         }
         
-        sql += ` ORDER BY d.title ASC LIMIT $${params.length + 1}`;
+        sql += ` ORDER BY d.title ASC LIMIT ${params.length + 1}`;
         params.push(limit);
         
         const result = await pool.query(sql, params);
