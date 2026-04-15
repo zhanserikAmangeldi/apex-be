@@ -11,6 +11,11 @@ from app.models import HealthResponse
 from app.routes.semantic import router as semantic_router
 from app.routes.chat import router as chat_router
 from app.routes.embeddings import router as embeddings_router
+from app.routes.flashcards import router as flashcards_router
+from app.routes.quiz import router as quiz_router
+from app.routes.progress import router as progress_router
+from app.routes.streaks import router as streaks_router
+from app.routes.reading import router as reading_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,6 +44,11 @@ app = FastAPI(
 app.include_router(semantic_router)
 app.include_router(chat_router)
 app.include_router(embeddings_router, prefix="/api/v1")
+app.include_router(flashcards_router)
+app.include_router(quiz_router)
+app.include_router(progress_router)
+app.include_router(streaks_router)
+app.include_router(reading_router)
 
 
 @app.get("/health", response_model=HealthResponse)

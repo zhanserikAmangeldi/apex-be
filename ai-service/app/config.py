@@ -26,7 +26,7 @@ class Settings(BaseSettings):
  
     chat_provider: str = "openai"
     
-    openai_api_key: str = ""
+    openai_api_key: str = "deepseek"
     openai_model: str = "gpt-4o-mini"
     openai_base_url: str = "https://api.openai.com/v1"
     

@@ -149,7 +149,7 @@ func main() {
 		ai := api.Group("/ai-service")
 		ai.Use(authMiddleware())
 		{
-			ai.Any("/*path", proxyRequest(aiServiceURL, 30*time.Second))
+			ai.Any("/*path", proxyRequest(aiServiceURL, 120*time.Second))
 		}
 
 		scraper := api.Group("/scraper-service")
