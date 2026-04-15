@@ -9,22 +9,22 @@ resources:
 images:
   - name: apex/api-gateway
     newName: zhanserik05/apex-api-gateway
-    newTag: bded063
+    newTag: "bded063" 
   - name: apex/user-service
     newName: zhanserik05/apex-user-service
-    newTag: bded063
+    newTag: "bded063"
   - name: apex/editor-service
     newName: zhanserik05/apex-editor-service
-    newTag: bded063
+    newTag: "bded063"
   - name: apex/ai-service
     newName: zhanserik05/apex-ai-service
-    newTag: bded063
+    newTag: "bded063"
   - name: apex/content-scraper-service
     newName: zhanserik05/apex-content-scraper-service
-    newTag: bded063
+    newTag: "bded063" 
   - name: apex/frontend
     newName: zhanserik05/apex-frontend
-    newTag: 4053e58
+    newTag: "0bc1489"
 
 patches:
   - target:
