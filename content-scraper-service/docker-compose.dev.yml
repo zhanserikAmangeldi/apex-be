@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  content-scraper-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: content-scraper-service-dev
+    ports:
+      - "8003:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://scraper:password@scraper-postgres:5432/scraper_db
+      - REDIS_URL=redis://redis:6379/0
+      - ENCRYPTION_KEY=dev-encryption-key-32-chars-long
+      - JWT_SECRET=dev-jwt-secret
+      - AI_SERVICE_URL=http://ai-service:8090
+      - EDITOR_SERVICE_URL=http://editor-service:3000
+    volumes:
+      - .:/app
+    depends_on:
+      - scraper-postgres
+      - redis
+    networks:
+      - apex-network
+
+  scraper-postgres:
+    image: postgres:17
+    container_name: scraper-postgres-dev
+    environment:
+      POSTGRES_DB: scraper_db
+      POSTGRES_USER: scraper
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5436:5432"
+    volumes:
+      - scraper_postgres_data:/var/lib/postgresql/data
+    networks:
+      - apex-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-dev
+    ports:
+      - "6379:6379"
+    networks:
+      - apex-network
+
+volumes:
+  scraper_postgres_data:
+
+networks:
+  apex-network:
+    external: true

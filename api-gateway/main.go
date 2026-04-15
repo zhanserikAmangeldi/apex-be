@@ -24,10 +24,11 @@ import (
 )
 
 var (
-	authServiceURL   = getEnv("AUTH_SERVICE_URL", "http://localhost:8081")
-	editorServiceURL = getEnv("EDITOR_SERVICE_URL", "http://localhost:3000")
-	editorWSURL      = getEnv("EDITOR_WS_URL", "ws://localhost:1234")
-	aiServiceURL     = getEnv("AI_SERVICE_URL", "http://localhost:8090")
+	authServiceURL    = getEnv("AUTH_SERVICE_URL", "http://localhost:8081")
+	editorServiceURL  = getEnv("EDITOR_SERVICE_URL", "http://localhost:3000")
+	editorWSURL       = getEnv("EDITOR_WS_URL", "ws://localhost:1234")
+	aiServiceURL      = getEnv("AI_SERVICE_URL", "http://localhost:8090")
+	scraperServiceURL = getEnv("SCRAPER_SERVICE_URL", "http://localhost:8003")
 )
 
 var jwtSecret []byte
@@ -68,7 +69,7 @@ func (i *IPRateLimiter) Cleanup() {
 	}
 }
 
-var ipLimiter = NewIPRateLimiter(rate.Limit(50), 100) 
+var ipLimiter = NewIPRateLimiter(rate.Limit(50), 100)
 
 var wsUpgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -150,6 +151,12 @@ func main() {
 		{
 			ai.Any("/*path", proxyRequest(aiServiceURL, 30*time.Second))
 		}
+
+		scraper := api.Group("/scraper-service")
+		// Scraper service не требует авторизацию для базовых операций
+		{
+			scraper.Any("/*path", proxyRequest(scraperServiceURL, 30*time.Second))
+		}
 	}
 
 	go func() {
@@ -165,6 +172,7 @@ func main() {
 	log.Printf("   Editor Service: %s", editorServiceURL)
 	log.Printf("   Editor WebSocket: %s", editorWSURL)
 	log.Printf("   AI Service: %s", aiServiceURL)
+	log.Printf("   Scraper Service: %s", scraperServiceURL)
 
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
@@ -457,6 +465,7 @@ func stripServicePrefix(path string) string {
 		"/api/auth-service",
 		"/api/editor-service",
 		"/api/ai-service",
+		"/api/scraper-service",
 	}
 
 	for _, prefix := range prefixes {

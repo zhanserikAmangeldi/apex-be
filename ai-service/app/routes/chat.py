@@ -86,7 +86,11 @@ async def chat_with_document(body: ChatRequest, request: Request):
         )
         
         history = [
-            ChatMessage(role=row["role"], content=row["content"], metadata=row["metadata"])
+            ChatMessage(
+                role=row["role"], 
+                content=row["content"], 
+                metadata=row["metadata"] if isinstance(row["metadata"], dict) else {}
+            )
             for row in history_rows
         ]
 

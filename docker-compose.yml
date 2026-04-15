@@ -181,6 +181,89 @@ services:
       - apex-network
 
   # ===========================================
+  # CONTENT SCRAPER SERVICE
+  # ===========================================
+  scraper-postgres:
+    image: postgres:17
+    container_name: scraper-postgres
+    environment:
+      POSTGRES_DB: ${SCRAPER_DB_NAME:-scraper_db}
+      POSTGRES_USER: ${SCRAPER_DB_USER:-scraper}
+      POSTGRES_PASSWORD: ${SCRAPER_DB_PASSWORD:-change-me-in-production}
+    ports:
+      - "${SCRAPER_DB_PORT_FORWARD:-5436}:5432"
+    volumes:
+      - scraper_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SCRAPER_DB_USER:-scraper} -d ${SCRAPER_DB_NAME:-scraper_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - apex-network
+
+  content-scraper-service:
+    build: ./content-scraper-service
+    container_name: content-scraper-service
+    depends_on:
+      scraper-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://scraper:${SCRAPER_DB_PASSWORD:-change-me-in-production}@scraper-postgres:5432/scraper_db
+      - REDIS_URL=redis://redis:6379/0
+      - ENCRYPTION_KEY=${SCRAPER_ENCRYPTION_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ALGORITHM=HS256
+      - AI_SERVICE_URL=http://ai-service:8090
+      - EDITOR_SERVICE_URL=http://editor-service:3000
+    ports:
+      - "${SCRAPER_HTTP_PORT_FORWARD:-8003}:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 -O /dev/null http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - apex-network
+
+  celery-worker:
+    build: ./content-scraper-service
+    container_name: celery-worker
+    command: celery -A app.tasks worker --loglevel=info
+    depends_on:
+      scraper-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://scraper:${SCRAPER_DB_PASSWORD:-change-me-in-production}@scraper-postgres:5432/scraper_db
+      - REDIS_URL=redis://redis:6379/0
+      - ENCRYPTION_KEY=${SCRAPER_ENCRYPTION_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - AI_SERVICE_URL=http://ai-service:8090
+      - EDITOR_SERVICE_URL=http://editor-service:3000
+    networks:
+      - apex-network
+
+  celery-beat:
+    build: ./content-scraper-service
+    container_name: celery-beat
+    command: celery -A app.tasks beat --loglevel=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://scraper:${SCRAPER_DB_PASSWORD:-change-me-in-production}@scraper-postgres:5432/scraper_db
+      - REDIS_URL=redis://redis:6379/0
+      - ENCRYPTION_KEY=${SCRAPER_ENCRYPTION_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+    networks:
+      - apex-network
+
+  # ===========================================
   # AI SERVICE
   # ===========================================
   ai-postgres:
@@ -251,6 +334,8 @@ services:
         condition: service_healthy
       ai-service:
         condition: service_healthy
+      content-scraper-service:
+        condition: service_healthy
     environment:
       - PORT=${GATEWAY_PORT:-8000}
       - GIN_MODE=${GIN_MODE:-debug}
@@ -260,6 +345,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
       - AI_SERVICE_URL=http://ai-service:8090
+      - SCRAPER_SERVICE_URL=http://content-scraper-service:8000
     ports:
       - "${GATEWAY_PORT:-8000}:${GATEWAY_PORT:-8000}"
     healthcheck:
@@ -275,6 +361,7 @@ volumes:
   user_postgres_data:
   editor_postgres_data:
   ai_postgres_data:
+  scraper_postgres_data:
   redis_data:
   minio_data:
 

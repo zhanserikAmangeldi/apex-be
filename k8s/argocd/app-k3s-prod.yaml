@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: apex-k3s-prod
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: apex
+    environment: k3s-prod
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/zhanserikAmangeldi/apex-be.git
+    targetRevision: master
+    path: k8s/overlays/k3s-prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: apex-prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

@@ -63,7 +63,7 @@ router.post('/',
     validateBody(createDocumentSchema),
     async (req, res, next) => {
         try {
-            const { title, vaultId, parentId, isFolder, icon } = req.body;
+            const { title, vaultId, parentId, isFolder, icon, content } = req.body;
 
             const document = await documentRepository.create(
                 req.user.userId,
@@ -72,6 +72,141 @@ router.post('/',
                 parentId,
                 isFolder
             );
+
+            // If content is provided, save it directly as Y.Doc update
+            if (content && !isFolder) {
+                const ydoc = new Y.Doc();
+                const xmlFragment = ydoc.getXmlFragment('default');
+                
+                // Parse markdown-like content and create proper structure
+                const lines = content.split('\n');
+                
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    
+                    if (!trimmed) {
+                        // Empty line - create empty paragraph
+                        const paragraph = new Y.XmlElement('paragraph');
+                        xmlFragment.push([paragraph]);
+                        continue;
+                    }
+                    
+                    // Check for heading (# Title)
+                    const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+                    if (headingMatch) {
+                        const level = headingMatch[1].length;
+                        const text = headingMatch[2];
+                        const heading = new Y.XmlElement('heading');
+                        heading.setAttribute('level', level);
+                        const textNode = new Y.XmlText();
+                        textNode.insert(0, text);
+                        heading.insert(0, [textNode]);
+                        xmlFragment.push([heading]);
+                        continue;
+                    }
+                    
+                    // Check for horizontal rule (---)
+                    if (trimmed === '---' || trimmed === '***') {
+                        const hr = new Y.XmlElement('horizontalRule');
+                        xmlFragment.push([hr]);
+                        continue;
+                    }
+                    
+                    // Check for list item (- item or * item)
+                    const listMatch = trimmed.match(/^[-*]\s+(.+)$/);
+                    if (listMatch) {
+                        const text = listMatch[1];
+                        const listItem = new Y.XmlElement('listItem');
+                        const paragraph = new Y.XmlElement('paragraph');
+                        const textNode = new Y.XmlText();
+                        textNode.insert(0, text);
+                        paragraph.insert(0, [textNode]);
+                        listItem.insert(0, [paragraph]);
+                        
+                        const bulletList = new Y.XmlElement('bulletList');
+                        bulletList.insert(0, [listItem]);
+                        xmlFragment.push([bulletList]);
+                        continue;
+                    }
+                    
+                    // Regular paragraph - handle bold (**text**) and links ([text](url))
+                    const paragraph = new Y.XmlElement('paragraph');
+                    
+                    // Parse inline formatting (bold and links)
+                    let remaining = trimmed;
+                    const tokens = [];
+                    
+                    // Extract bold and links
+                    const regex = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g;
+                    let lastIndex = 0;
+                    let match;
+                    
+                    while ((match = regex.exec(remaining)) !== null) {
+                        // Add text before match
+                        if (match.index > lastIndex) {
+                            tokens.push({ type: 'text', content: remaining.slice(lastIndex, match.index) });
+                        }
+                        
+                        const matched = match[0];
+                        if (matched.startsWith('**') && matched.endsWith('**')) {
+                            // Bold text
+                            tokens.push({ type: 'bold', content: matched.slice(2, -2) });
+                        } else if (matched.startsWith('[')) {
+                            // Link [text](url)
+                            const linkMatch = matched.match(/\[([^\]]+)\]\(([^)]+)\)/);
+                            if (linkMatch) {
+                                tokens.push({ type: 'link', text: linkMatch[1], href: linkMatch[2] });
+                            }
+                        }
+                        
+                        lastIndex = regex.lastIndex;
+                    }
+                    
+                    // Add remaining text
+                    if (lastIndex < remaining.length) {
+                        tokens.push({ type: 'text', content: remaining.slice(lastIndex) });
+                    }
+                    
+                    // If no tokens, just add plain text
+                    if (tokens.length === 0) {
+                        const textNode = new Y.XmlText();
+                        textNode.insert(0, trimmed);
+                        paragraph.push([textNode]);
+                    } else {
+                        // Build paragraph with formatted tokens
+                        for (const token of tokens) {
+                            if (token.type === 'text' && token.content) {
+                                const textNode = new Y.XmlText();
+                                textNode.insert(0, token.content);
+                                paragraph.push([textNode]);
+                            } else if (token.type === 'bold') {
+                                const textNode = new Y.XmlText();
+                                textNode.insert(0, token.content);
+                                textNode.format(0, token.content.length, { bold: true });
+                                paragraph.push([textNode]);
+                            } else if (token.type === 'link') {
+                                const textNode = new Y.XmlText();
+                                textNode.insert(0, token.text);
+                                textNode.format(0, token.text.length, { link: { href: token.href } });
+                                paragraph.push([textNode]);
+                            }
+                        }
+                    }
+                    
+                    xmlFragment.push([paragraph]);
+                }
+                
+                const update = Y.encodeStateAsUpdate(ydoc);
+                await crdtService.saveUpdate(document.id, update);
+                
+                apiLogger.info('Initial content saved for document', { documentId: document.id, contentLength: content.length });
+                
+                // Schedule AI indexing for the new document
+                const { indexDocumentNow } = await import('../services/ai-indexer.service.js');
+                indexDocumentNow(document.id, ydoc, req.user.userId).catch(err => {
+                    apiLogger.warn({ err, documentId: document.id }, 'Failed to index new document');
+                });
+            }
 
             logAudit('document_created', req.user.userId, {
                 documentId: document.id,
@@ -592,8 +727,8 @@ router.get('/:id/export/text',
             const ydoc = new Y.Doc();
             Y.applyUpdate(ydoc, state);
             
-            // Extract text from prosemirror content
-            const xmlFragment = ydoc.getXmlFragment('prosemirror');
+            // Extract text from default fragment (not prosemirror)
+            const xmlFragment = ydoc.getXmlFragment('default');
             let text = '';
             
             const extractText = (node) => {

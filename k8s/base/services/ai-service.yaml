@@ -22,7 +22,7 @@ spec:
       containers:
         - name: ai-service
           image: apex/ai-service:latest
-          imagePullPolicy: Never
+          imagePullPolicy: Always
           ports:
             - containerPort: 8090
           envFrom:
@@ -72,3 +72,6 @@ stringData:
   DB_USER: ai-service
   DB_PASSWORD: change-me-in-production
   JWT_SECRET: your-super-secret-jwt-key-change-in-production-min-32-chars
+  YOUTUBE_API_KEY: change-me-youtube-api-key
+  OPENAI_API_KEY: change-me-openai-api-key
+  DEEPSEEK_API_KEY: change-me-deepseek-api-key
