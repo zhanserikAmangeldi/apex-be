@@ -1,9 +1,6 @@
 import pool from '../pool/index.js';
 
 export class AttachmentRepository {
-    /**
-     * Create a new attachment record
-     */
     async create(documentId, filename, minioPath, contentType, sizeBytes, uploadedBy) {
         const result = await pool.query(
             `INSERT INTO attachments (document_id, filename, minio_path, content_type, size_bytes, uploaded_by)
@@ -14,9 +11,6 @@ export class AttachmentRepository {
         return result.rows[0];
     }
 
-    /**
-     * Get attachment by ID
-     */
     async getById(attachmentId) {
         const result = await pool.query(
             `SELECT * FROM attachments WHERE id = $1`,
@@ -25,9 +19,6 @@ export class AttachmentRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Get all attachments for a document
-     */
     async getByDocumentId(documentId) {
         const result = await pool.query(
             `SELECT id, document_id, filename, minio_path, content_type, size_bytes, 
@@ -40,9 +31,6 @@ export class AttachmentRepository {
         return result.rows;
     }
 
-    /**
-     * Delete attachment
-     */
     async delete(attachmentId) {
         const result = await pool.query(
             `DELETE FROM attachments WHERE id = $1 RETURNING *`,
@@ -51,9 +39,6 @@ export class AttachmentRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Check if user has access to attachment (via document)
-     */
     async checkAccess(attachmentId, userId) {
         const result = await pool.query(
             `SELECT 1 FROM attachments a
@@ -68,9 +53,6 @@ export class AttachmentRepository {
         return result.rows.length > 0;
     }
 
-    /**
-     * Get total size of attachments for a document
-     */
     async getTotalSize(documentId) {
         const result = await pool.query(
             `SELECT COALESCE(SUM(size_bytes), 0) as total_size

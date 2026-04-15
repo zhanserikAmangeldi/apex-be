@@ -1,6 +1,3 @@
-/**
- * Global error handler middleware
- */
 export function errorHandler(err, req, res, next) {
     console.error('❌ Error:', err);
 
@@ -59,9 +56,6 @@ export function errorHandler(err, req, res, next) {
     });
 }
 
-/**
- * Not found handler - for undefined routes
- */
 export function notFoundHandler(req, res) {
     res.status(404).json({
         error: 'not_found',
@@ -69,9 +63,6 @@ export function notFoundHandler(req, res) {
     });
 }
 
-/**
- * Custom error classes
- */
 export class AppError extends Error {
     constructor(message, statusCode = 500) {
         super(message);

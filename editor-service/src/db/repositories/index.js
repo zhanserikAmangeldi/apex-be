@@ -5,3 +5,4 @@ export { vaultRepository, VaultRepository } from './vault.repository.js';
 export { attachmentRepository, AttachmentRepository } from './attachment.repository.js';
 export { tagRepository, TagRepository } from './tag.repository.js';
 export { graphRepository, GraphRepository } from './graph.repository.js';
+export { connectionRepository, ConnectionRepository } from './connection.repository.js';

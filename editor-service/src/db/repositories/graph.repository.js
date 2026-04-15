@@ -1,14 +1,9 @@
 import pool from '../pool/index.js';
 
 export class GraphRepository {
-    /**
-     * Get all documents in vault with their relationships
-     */
     async getVaultGraph(vaultId, userId) {
         console.log('GraphRepository: Getting graph for vault', vaultId, 'user', userId);
-        console.log('GraphRepository: userId type:', typeof userId, 'value:', userId);
         
-        // Get all documents user has access to in the vault
         const documentsResult = await pool.query(
             `SELECT d.id, d.title, d.icon, d.parent_id, d.is_folder,
                     d.created_at, d.updated_at, d.owner_id,
@@ -35,7 +30,6 @@ export class GraphRepository {
             console.log('GraphRepository: First document owner_id:', documentsResult.rows[0].owner_id);
         }
 
-        // Get all tags for documents in this vault
         const tagsResult = await pool.query(
             `SELECT dt.document_id, t.id as tag_id, t.name, t.color
              FROM document_tags dt
@@ -45,7 +39,6 @@ export class GraphRepository {
             [vaultId]
         );
 
-        // Get document links from CRDT snapshots
         const linksResult = await pool.query(
             `SELECT cs.document_id, cs.snapshot
              FROM crdt_snapshots cs
@@ -54,7 +47,6 @@ export class GraphRepository {
             [vaultId]
         );
 
-        // Also get updates for documents without snapshots
         const updatesResult = await pool.query(
             `SELECT cu.document_id, array_agg(cu.update_data ORDER BY cu.created_at) as updates
              FROM crdt_updates cu
@@ -69,17 +61,26 @@ export class GraphRepository {
             [vaultId]
         );
 
+        const connectionsResult = await pool.query(
+            `SELECT nc.id, nc.source_note_id, nc.target_note_id,
+                    nc.connection_type, nc.description
+             FROM notes_connections nc
+             INNER JOIN documents d_source ON d_source.id = nc.source_note_id
+                AND d_source.vault_id = $1 AND d_source.is_deleted = false
+             INNER JOIN documents d_target ON d_target.id = nc.target_note_id
+                AND d_target.vault_id = $1 AND d_target.is_deleted = false`,
+            [vaultId]
+        );
+
         return {
             documents: documentsResult.rows,
             tags: tagsResult.rows,
             snapshots: linksResult.rows,
-            updates: updatesResult.rows
+            updates: updatesResult.rows,
+            connections: connectionsResult.rows
         };
     }
 
-    /**
-     * Get documents by tag for graph clustering
-     */
     async getDocumentsByTags(vaultId) {
         const result = await pool.query(
             `SELECT t.id as tag_id, t.name, t.color,
@@ -93,11 +94,7 @@ export class GraphRepository {
         );
         return result.rows;
     }
-    /**
-     * Get data needed to compute backlinks for a document
-     */
     async getBacklinksData(documentId, userId) {
-        // Get the document and its vault
         const docResult = await pool.query(
             `SELECT id, title, vault_id FROM documents
              WHERE id = $1 AND is_deleted = false
@@ -116,14 +113,12 @@ export class GraphRepository {
         const doc = docResult.rows[0];
         const vaultId = doc.vault_id;
 
-        // Get all documents in the same vault
         const vaultDocsResult = await pool.query(
             `SELECT id, title, icon FROM documents
              WHERE vault_id = $1 AND is_deleted = false AND is_folder = false`,
             [vaultId]
         );
 
-        // Get snapshots
         const snapshotsResult = await pool.query(
             `SELECT cs.document_id, cs.snapshot
              FROM crdt_snapshots cs
@@ -132,7 +127,6 @@ export class GraphRepository {
             [vaultId]
         );
 
-        // Get updates for docs without snapshots
         const updatesResult = await pool.query(
             `SELECT cu.document_id, array_agg(cu.update_data ORDER BY cu.created_at) as updates
              FROM crdt_updates cu

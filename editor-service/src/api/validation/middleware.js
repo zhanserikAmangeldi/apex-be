@@ -1,9 +1,6 @@
 import { ZodError } from 'zod';
 import { logger } from '../../services/logger.service.js';
 
-/**
- * Validate request body against Zod schema
- */
 export function validateBody(schema) {
     return (req, res, next) => {
         try {
@@ -16,9 +13,6 @@ export function validateBody(schema) {
     };
 }
 
-/**
- * Validate request params against Zod schema
- */
 export function validateParams(schema) {
     return (req, res, next) => {
         try {
@@ -31,9 +25,6 @@ export function validateParams(schema) {
     };
 }
 
-/**
- * Validate request query against Zod schema
- */
 export function validateQuery(schema) {
     return (req, res, next) => {
         try {
@@ -46,9 +37,6 @@ export function validateQuery(schema) {
     };
 }
 
-/**
- * Validate multiple parts of request
- */
 export function validate(schemas) {
     return (req, res, next) => {
         const errors = [];
@@ -101,9 +89,6 @@ export function validate(schemas) {
     };
 }
 
-/**
- * Format Zod errors for API response
- */
 function formatZodErrors(error, location) {
     if (!error.errors || !Array.isArray(error.errors)) {
         return [{
@@ -122,9 +107,6 @@ function formatZodErrors(error, location) {
     }));
 }
 
-/**
- * Handle validation error response
- */
 function handleValidationError(error, res, location) {
     if (error instanceof ZodError) {
         const details = formatZodErrors(error, location);

@@ -14,6 +14,7 @@ import attachmentsRoutes from './api/routes/attachments.routes.js';
 import tagsRoutes from './api/routes/tags.routes.js';
 import searchRoutes from './api/routes/search.routes.js';
 import graphRoutes from './api/routes/graph.routes.js';
+import connectionsRoutes from './api/routes/connections.routes.js';
 
 import { errorHandler, notFoundHandler } from './api/middleware/index.js';
 
@@ -38,8 +39,8 @@ async function main() {
 
     app.use(helmet({
         contentSecurityPolicy: false,
-        frameguard: false, // Disable X-Frame-Options to allow iframe embedding
-        crossOriginResourcePolicy: false, // Disable CORP to allow cross-origin loading
+        frameguard: false,
+        crossOriginResourcePolicy: false,
     }));
     app.use(express.json({ limit: '10mb' }));
     app.use(express.urlencoded({ extended: true }));
@@ -67,8 +68,8 @@ async function main() {
     app.use('/api/v1', tagsRoutes);
     app.use('/api/v1/search', searchRoutes);
     app.use('/api/v1', graphRoutes);
+    app.use('/api/v1/connections', connectionsRoutes);
     
-    // Public download endpoint (bypasses API Gateway auth)
     app.get('/public/attachments/:id/download', async (req, res, next) => {
         try {
             const { id } = req.params;
@@ -85,7 +86,6 @@ async function main() {
                 return res.status(401).json({ error: 'Token required' });
             }
 
-            // Verify JWT token directly (same as API Gateway)
             let userId;
             try {
                 const jwt = await import('jsonwebtoken');
@@ -116,7 +116,6 @@ async function main() {
 
             console.log('Found attachment:', attachment.filename);
 
-            // Check access
             const hasAccess = await attachmentRepository.checkAccess(id, userId);
             if (!hasAccess) {
                 console.log('Access denied for user:', userId);
@@ -125,7 +124,6 @@ async function main() {
 
             console.log('Downloading from MinIO:', attachment.minio_path);
 
-            // Download from MinIO
             const fileBuffer = await minioService.download(
                 config.minio.buckets.attachments,
                 attachment.minio_path
@@ -133,7 +131,6 @@ async function main() {
 
             console.log('File downloaded, size:', fileBuffer.length);
 
-            // Set headers - allow cross-origin access
             res.removeHeader('X-Frame-Options');
             res.removeHeader('Cross-Origin-Resource-Policy');
             res.setHeader('Content-Type', attachment.content_type || 'application/octet-stream');
@@ -145,7 +142,6 @@ async function main() {
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
             res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
-            // Send file
             res.send(fileBuffer);
             console.log('File sent successfully');
         } catch (err) {

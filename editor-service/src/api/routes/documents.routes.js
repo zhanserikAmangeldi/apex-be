@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import * as Y from 'yjs';
 import { authenticateToken } from '../middleware/index.js';
 import { validateBody, validateParams } from '../validation/index.js';
 import {
@@ -18,9 +19,6 @@ import { deleteEmbedding } from '../../services/ai-indexer.service.js';
 
 const router = Router();
 
-/**
- * GET /documents - Get all user's documents
- */
 router.get('/', authenticateToken, async (req, res, next) => {
     try {
         const documents = await documentRepository.getAllByUserId(req.user.userId);
@@ -36,9 +34,6 @@ router.get('/', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * GET /documents/shared - Get documents shared with user
- */
 router.get('/shared', authenticateToken, async (req, res, next) => {
     try {
         const documents = await documentRepository.getSharedWithUser(req.user.userId);
@@ -54,15 +49,12 @@ router.get('/shared', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * POST /documents - Create new document
- */
 router.post('/',
     authenticateToken,
     validateBody(createDocumentSchema),
     async (req, res, next) => {
         try {
-            const { title, vaultId, parentId, isFolder, icon } = req.body;
+            const { title, vaultId, parentId, isFolder, icon, content } = req.body;
 
             const document = await documentRepository.create(
                 req.user.userId,
@@ -71,6 +63,125 @@ router.post('/',
                 parentId,
                 isFolder
             );
+
+            if (content && !isFolder) {
+                const ydoc = new Y.Doc();
+                const xmlFragment = ydoc.getXmlFragment('default');
+                
+                const lines = content.split('\n');
+                
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    
+                    if (!trimmed) {
+                        const paragraph = new Y.XmlElement('paragraph');
+                        xmlFragment.push([paragraph]);
+                        continue;
+                    }
+                    
+                    const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+                    if (headingMatch) {
+                        const level = headingMatch[1].length;
+                        const text = headingMatch[2];
+                        const heading = new Y.XmlElement('heading');
+                        heading.setAttribute('level', level);
+                        const textNode = new Y.XmlText();
+                        textNode.insert(0, text);
+                        heading.insert(0, [textNode]);
+                        xmlFragment.push([heading]);
+                        continue;
+                    }
+                    
+                    if (trimmed === '---' || trimmed === '***') {
+                        const hr = new Y.XmlElement('horizontalRule');
+                        xmlFragment.push([hr]);
+                        continue;
+                    }
+                    
+                    const listMatch = trimmed.match(/^[-*]\s+(.+)$/);
+                    if (listMatch) {
+                        const text = listMatch[1];
+                        const listItem = new Y.XmlElement('listItem');
+                        const paragraph = new Y.XmlElement('paragraph');
+                        const textNode = new Y.XmlText();
+                        textNode.insert(0, text);
+                        paragraph.insert(0, [textNode]);
+                        listItem.insert(0, [paragraph]);
+                        
+                        const bulletList = new Y.XmlElement('bulletList');
+                        bulletList.insert(0, [listItem]);
+                        xmlFragment.push([bulletList]);
+                        continue;
+                    }
+                    
+                    const paragraph = new Y.XmlElement('paragraph');
+                    
+                    let remaining = trimmed;
+                    const tokens = [];
+                    
+                    const regex = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g;
+                    let lastIndex = 0;
+                    let match;
+                    
+                    while ((match = regex.exec(remaining)) !== null) {
+                        if (match.index > lastIndex) {
+                            tokens.push({ type: 'text', content: remaining.slice(lastIndex, match.index) });
+                        }
+                        
+                        const matched = match[0];
+                        if (matched.startsWith('**') && matched.endsWith('**')) {
+                            tokens.push({ type: 'bold', content: matched.slice(2, -2) });
+                        } else if (matched.startsWith('[')) {
+                            const linkMatch = matched.match(/\[([^\]]+)\]\(([^)]+)\)/);
+                            if (linkMatch) {
+                                tokens.push({ type: 'link', text: linkMatch[1], href: linkMatch[2] });
+                            }
+                        }
+                        
+                        lastIndex = regex.lastIndex;
+                    }
+                    
+                    if (lastIndex < remaining.length) {
+                        tokens.push({ type: 'text', content: remaining.slice(lastIndex) });
+                    }
+                    
+                    if (tokens.length === 0) {
+                        const textNode = new Y.XmlText();
+                        textNode.insert(0, trimmed);
+                        paragraph.push([textNode]);
+                    } else {
+                        for (const token of tokens) {
+                            if (token.type === 'text' && token.content) {
+                                const textNode = new Y.XmlText();
+                                textNode.insert(0, token.content);
+                                paragraph.push([textNode]);
+                            } else if (token.type === 'bold') {
+                                const textNode = new Y.XmlText();
+                                textNode.insert(0, token.content);
+                                textNode.format(0, token.content.length, { bold: true });
+                                paragraph.push([textNode]);
+                            } else if (token.type === 'link') {
+                                const textNode = new Y.XmlText();
+                                textNode.insert(0, token.text);
+                                textNode.format(0, token.text.length, { link: { href: token.href } });
+                                paragraph.push([textNode]);
+                            }
+                        }
+                    }
+                    
+                    xmlFragment.push([paragraph]);
+                }
+                
+                const update = Y.encodeStateAsUpdate(ydoc);
+                await crdtService.saveUpdate(document.id, update);
+                
+                apiLogger.info('Initial content saved for document', { documentId: document.id, contentLength: content.length });
+                
+                const { indexDocumentNow } = await import('../services/ai-indexer.service.js');
+                indexDocumentNow(document.id, ydoc, req.user.userId).catch(err => {
+                    apiLogger.warn({ err, documentId: document.id }, 'Failed to index new document');
+                });
+            }
 
             logAudit('document_created', req.user.userId, {
                 documentId: document.id,
@@ -85,9 +196,6 @@ router.post('/',
     }
 );
 
-/**
- * GET /documents/:id - Get document by ID
- */
 router.get('/:id',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -108,9 +216,6 @@ router.get('/:id',
     }
 );
 
-/**
- * PUT /documents/:id - Update document
- */
 router.put('/:id',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -143,9 +248,6 @@ router.put('/:id',
     }
 );
 
-/**
- * PATCH /documents/:id - Partial update document
- */
 router.patch('/:id',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -178,9 +280,6 @@ router.patch('/:id',
     }
 );
 
-/**
- * DELETE /documents/:id - Delete document
- */
 router.delete('/:id',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -194,7 +293,6 @@ router.delete('/:id',
                 throw new NotFoundError('Document not found or no permission to delete');
             }
 
-            // Clean up AI embedding (non-blocking)
             deleteEmbedding(id, req.user.userId).catch(() => {});
 
             logAudit('document_deleted', req.user.userId, { documentId: id });
@@ -206,9 +304,6 @@ router.delete('/:id',
     }
 );
 
-/**
- * POST /documents/:id/move - Move document to different parent
- */
 router.post('/:id/move',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -241,9 +336,6 @@ router.post('/:id/move',
     }
 );
 
-/**
- * GET /documents/:id/stats - Get document statistics
- */
 router.get('/:id/stats',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -264,9 +356,6 @@ router.get('/:id/stats',
     }
 );
 
-/**
- * POST /documents/:id/snapshot - Force create snapshot
- */
 router.post('/:id/snapshot',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -296,9 +385,6 @@ router.post('/:id/snapshot',
     }
 );
 
-/**
- * POST /documents/:id/share - Share document with user
- */
 router.post('/:id/share',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -308,13 +394,11 @@ router.post('/:id/share',
             const { id } = req.params;
             let { userId, email, permission } = req.body;
 
-            // Check if user is owner
             const isOwner = await documentRepository.isOwner(id, req.user.userId);
             if (!isOwner) {
                 throw new ForbiddenError('Only document owner can share');
             }
 
-            // If email is provided, fetch userId from user-service
             if (email && !userId) {
                 try {
                     const userServiceUrl = process.env.USER_SERVICE_URL || 'http://user-service:8080';
@@ -379,16 +463,12 @@ router.post('/:id/share',
     }
 );
 
-/**
- * DELETE /documents/:id/share/:userId - Remove user access
- */
 router.delete('/:id/share/:userId',
     authenticateToken,
     async (req, res, next) => {
         try {
             const { id, userId } = req.params;
 
-            // Check if user is owner or admin
             const document = await documentRepository.getByIdWithPermission(id, req.user.userId);
             if (!document) {
                 throw new NotFoundError('Document not found');
@@ -417,9 +497,6 @@ router.delete('/:id/share/:userId',
     }
 );
 
-/**
- * GET /documents/:id/collaborators - Get document collaborators
- */
 router.get('/:id/collaborators',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -433,7 +510,6 @@ router.get('/:id/collaborators',
                 username: req.user.username
             });
 
-            // First check if document exists and user has any access
             const document = await documentRepository.getByIdWithPermission(id, req.user.userId);
             
             apiLogger.info('Document query result', {
@@ -444,7 +520,6 @@ router.get('/:id/collaborators',
             });
             
             if (!document) {
-                // Check if document exists at all
                 const exists = await documentRepository.exists(id);
                 apiLogger.warn('Document access denied', {
                     documentId: id,
@@ -459,7 +534,6 @@ router.get('/:id/collaborators',
                 }
             }
 
-            // Check if user can manage access
             const canManageAccess = document.user_permission === 'owner' || document.user_permission === 'admin';
             
             apiLogger.info('Permission check', {
@@ -494,9 +568,6 @@ router.get('/:id/collaborators',
     }
 );
 
-/**
- * PATCH /documents/:id/share/:userId - Update user permission
- */
 router.patch('/:id/share/:userId',
     authenticateToken,
     async (req, res, next) => {
@@ -504,7 +575,6 @@ router.patch('/:id/share/:userId',
             const { id, userId } = req.params;
             const { permission } = req.body;
 
-            // Check if user is owner or admin
             const document = await documentRepository.getByIdWithPermission(id, req.user.userId);
             if (!document) {
                 throw new NotFoundError('Document not found');
@@ -537,9 +607,6 @@ router.patch('/:id/share/:userId',
     }
 );
 
-/**
- * GET /documents/:id/attachments - Get all attachments for document
- */
 router.get('/:id/attachments',
     authenticateToken,
     validateParams(documentIdParamSchema),
@@ -547,7 +614,6 @@ router.get('/:id/attachments',
         try {
             const { id } = req.params;
 
-            // Check document access
             const hasAccess = await documentRepository.checkAccess(id, req.user.userId);
             if (!hasAccess) {
                 throw new ForbiddenError('No access to this document');
@@ -555,7 +621,6 @@ router.get('/:id/attachments',
 
             const attachments = await attachmentRepository.getByDocumentId(id);
 
-            // Generate public download URLs for all attachments
             const attachmentsWithUrls = attachments.map((attachment) => ({
                 id: attachment.id,
                 documentId: attachment.document_id,
@@ -568,6 +633,65 @@ router.get('/:id/attachments',
             }));
 
             res.json({ attachments: attachmentsWithUrls });
+        } catch (err) {
+            next(err);
+        }
+    }
+);
+
+router.get('/:id/export/text',
+    authenticateToken,
+    validateParams(documentIdParamSchema),
+    async (req, res, next) => {
+        try {
+            const { id } = req.params;
+
+            const hasAccess = await documentRepository.checkAccess(id, req.user.userId);
+            if (!hasAccess) {
+                throw new ForbiddenError('No access to this document');
+            }
+
+            const document = await documentRepository.getById(id);
+            if (!document) {
+                throw new NotFoundError('Document not found');
+            }
+
+            const state = await crdtService.loadDocumentState(id);
+            
+            const ydoc = new Y.Doc();
+            Y.applyUpdate(ydoc, state);
+            
+            const xmlFragment = ydoc.getXmlFragment('default');
+            let text = '';
+            
+            const extractText = (node) => {
+                if (node._item && node._item.content) {
+                    const content = node._item.content;
+                    if (content.str) {
+                        text += content.str;
+                    }
+                }
+                
+                if (node._first) {
+                    let item = node._first;
+                    while (item) {
+                        if (item.content && item.content.str) {
+                            text += item.content.str;
+                        } else if (item.content && item.content.type) {
+                            extractText(item.content.type);
+                        }
+                        item = item.right;
+                    }
+                }
+            };
+            
+            extractText(xmlFragment);
+
+            res.json({
+                document_id: id,
+                title: document.title,
+                content: text.trim() || ''
+            });
         } catch (err) {
             next(err);
         }

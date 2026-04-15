@@ -24,7 +24,6 @@ export const config = {
         useSSL: process.env.MINIO_USE_SSL === 'true',
         accessKey: process.env.MINIO_ACCESS_KEY || 'admin',
         secretKey: process.env.MINIO_SECRET_KEY || 'admin123',
-        // External URL for presigned URLs (accessible from browser)
         externalEndpoint: process.env.MINIO_EXTERNAL_ENDPOINT || 'localhost',
         externalPort: parseInt(process.env.MINIO_EXTERNAL_PORT || '9000'),
         buckets: {

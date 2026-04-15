@@ -4,14 +4,9 @@ import { logger } from './logger.service.js';
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://ai-service:8090';
 
-// Debounce map: documentId -> timeout
 const pendingIndexes = new Map();
-const DEBOUNCE_MS = 5000; // 5 seconds after last edit
+const DEBOUNCE_MS = 5000;
 
-/**
- * Extract plain text from a Yjs document.
- * Tiptap stores content in the "default" XMLFragment.
- */
 function extractTextFromYDoc(ydoc) {
     try {
         const xmlFragment = ydoc.getXmlFragment('default');
@@ -22,14 +17,10 @@ function extractTextFromYDoc(ydoc) {
     }
 }
 
-/**
- * Recursively extract text from an XML fragment/element.
- */
 function xmlFragmentToText(node) {
     let text = '';
 
     if (node.toString) {
-        // Try to iterate children
         const len = node.length || 0;
         for (let i = 0; i < len; i++) {
             const child = node.get(i);
@@ -37,7 +28,6 @@ function xmlFragmentToText(node) {
                 text += child.toString();
             } else if (child instanceof Y.XmlElement || child instanceof Y.XmlFragment) {
                 text += xmlFragmentToText(child);
-                // Add newline after block elements
                 const nodeName = child.nodeName;
                 if (['paragraph', 'heading', 'blockquote', 'codeBlock', 'listItem', 'bulletList', 'orderedList'].includes(nodeName)) {
                     text += '\n';
@@ -49,11 +39,7 @@ function xmlFragmentToText(node) {
     return text;
 }
 
-/**
- * Send document content to AI service for embedding.
- * Fire-and-forget — errors are logged but don't affect editor.
- */
-async function indexDocument(documentId, userId, title, content) {
+async function indexDocument(documentId, userId, vaultId, title, content) {
     try {
         const url = `${AI_SERVICE_URL}/api/v1/embeddings`;
 
@@ -67,10 +53,11 @@ async function indexDocument(documentId, userId, title, content) {
             },
             body: JSON.stringify({
                 document_id: documentId,
+                vault_id: vaultId,
                 title: title || '',
                 content: content,
             }),
-            signal: AbortSignal.timeout(10000), // 10s timeout
+            signal: AbortSignal.timeout(10000),
         });
 
         if (!response.ok) {
@@ -82,17 +69,11 @@ async function indexDocument(documentId, userId, title, content) {
         const result = await response.json();
         logger.info({ documentId, created: result.created }, 'AI indexing complete');
     } catch (err) {
-        // Don't let AI service failures affect the editor
         logger.warn({ err, documentId }, 'AI indexing request failed (non-blocking)');
     }
 }
 
-/**
- * Schedule document indexing with debounce.
- * Called from hocuspocus onStoreDocument.
- */
 export function scheduleIndexing(documentId, ydoc, userId) {
-    // Clear previous pending index for this document
     if (pendingIndexes.has(documentId)) {
         clearTimeout(pendingIndexes.get(documentId));
     }
@@ -101,19 +82,18 @@ export function scheduleIndexing(documentId, ydoc, userId) {
         pendingIndexes.delete(documentId);
 
         try {
-            // Extract text from Yjs doc
             const content = extractTextFromYDoc(ydoc);
-            if (!content || content.trim().length < 10) {
-                return; // Skip very short or empty documents
-            }
 
-            // Get document title from DB
             const doc = await documentRepository.getById(documentId);
-            if (!doc || doc.is_folder || doc.is_deleted) {
+            if (!doc || doc.is_folder || doc.is_deleted) return;
+
+            if (!content || content.trim().length < 10) {
+                // Content is empty/too short — remove stale embedding if exists
+                await deleteEmbedding(documentId, userId || doc.owner_id);
                 return;
             }
 
-            await indexDocument(documentId, userId || doc.owner_id, doc.title, content.trim());
+            await indexDocument(documentId, userId || doc.owner_id, doc.vault_id, doc.title, content.trim());
         } catch (err) {
             logger.warn({ err, documentId }, 'Scheduled indexing failed');
         }
@@ -122,27 +102,24 @@ export function scheduleIndexing(documentId, ydoc, userId) {
     pendingIndexes.set(documentId, timeout);
 }
 
-/**
- * Immediately index a document (used for manual triggers).
- */
 export async function indexDocumentNow(documentId, ydoc, userId) {
     try {
         const content = extractTextFromYDoc(ydoc);
-        if (!content || content.trim().length < 10) return;
 
         const doc = await documentRepository.getById(documentId);
         if (!doc || doc.is_folder || doc.is_deleted) return;
 
-        await indexDocument(documentId, userId || doc.owner_id, doc.title, content.trim());
+        if (!content || content.trim().length < 10) {
+            await deleteEmbedding(documentId, userId || doc.owner_id);
+            return;
+        }
+
+        await indexDocument(documentId, userId || doc.owner_id, doc.vault_id, doc.title, content.trim());
     } catch (err) {
         logger.warn({ err, documentId }, 'Immediate indexing failed');
     }
 }
 
-/**
- * Delete embedding when a document is deleted.
- * Fire-and-forget.
- */
 export async function deleteEmbedding(documentId, userId) {
     try {
         const url = `${AI_SERVICE_URL}/api/v1/embeddings/${documentId}`;

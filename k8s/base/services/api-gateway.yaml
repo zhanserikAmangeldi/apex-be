@@ -22,7 +22,7 @@ spec:
       containers:
         - name: api-gateway
           image: apex/api-gateway:latest
-          imagePullPolicy: Never
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
           envFrom:

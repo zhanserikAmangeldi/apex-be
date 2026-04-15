@@ -22,7 +22,7 @@ spec:
       containers:
         - name: user-service
           image: apex/user-service:latest
-          imagePullPolicy: Never
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           envFrom:

@@ -52,16 +52,16 @@ async def create_embedding(body: EmbedRequest, request: Request):
             await conn.execute(
                 """UPDATE document_embeddings
                    SET embedding = $1, content_hash = $2, title = $3,
-                       user_id = $4, updated_at = CURRENT_TIMESTAMP
-                   WHERE document_id = $5""",
-                embedding, c_hash, body.title, UUID(user_id), body.document_id,
+                       user_id = $4, vault_id = $5, updated_at = CURRENT_TIMESTAMP
+                   WHERE document_id = $6""",
+                embedding, c_hash, body.title, UUID(user_id), body.vault_id, body.document_id,
             )
         else:
             await conn.execute(
                 """INSERT INTO document_embeddings
-                   (document_id, user_id, title, content_hash, embedding)
-                   VALUES ($1, $2, $3, $4, $5)""",
-                body.document_id, UUID(user_id), body.title, c_hash, embedding,
+                   (document_id, user_id, vault_id, title, content_hash, embedding)
+                   VALUES ($1, $2, $3, $4, $5, $6)""",
+                body.document_id, UUID(user_id), body.vault_id, body.title, c_hash, embedding,
             )
 
     return EmbeddingResponse(
@@ -111,16 +111,16 @@ async def create_embeddings_batch(body: BatchEmbedRequest, request: Request):
                 await conn.execute(
                     """UPDATE document_embeddings
                        SET embedding = $1, content_hash = $2, title = $3,
-                           user_id = $4, updated_at = CURRENT_TIMESTAMP
-                       WHERE document_id = $5""",
-                    emb, c_hash, doc.title, user_id, doc.document_id,
+                           user_id = $4, vault_id = $5, updated_at = CURRENT_TIMESTAMP
+                       WHERE document_id = $6""",
+                    emb, c_hash, doc.title, user_id, doc.vault_id, doc.document_id,
                 )
             else:
                 await conn.execute(
                     """INSERT INTO document_embeddings
-                       (document_id, user_id, title, content_hash, embedding)
-                       VALUES ($1, $2, $3, $4, $5)""",
-                    doc.document_id, user_id, doc.title, c_hash, emb,
+                       (document_id, user_id, vault_id, title, content_hash, embedding)
+                       VALUES ($1, $2, $3, $4, $5, $6)""",
+                    doc.document_id, user_id, doc.vault_id, doc.title, c_hash, emb,
                 )
 
             results.append(EmbeddingResponse(
@@ -132,7 +132,7 @@ async def create_embeddings_batch(body: BatchEmbedRequest, request: Request):
 
 @router.post("/search/semantic", response_model=SemanticSearchResponse)
 async def semantic_search(body: SemanticSearchRequest, request: Request):
-    """Search documents by semantic similarity."""
+    """Search documents by semantic similarity within a vault."""
     user = get_user_from_headers(request)
     user_id = user["user_id"]
 
@@ -146,10 +146,10 @@ async def semantic_search(body: SemanticSearchRequest, request: Request):
             """SELECT document_id, title,
                       1 - (embedding <=> $1::vector) AS score
                FROM document_embeddings
-               WHERE user_id = $2
+               WHERE user_id = $2 AND vault_id = $3
                ORDER BY embedding <=> $1::vector
-               LIMIT $3""",
-            query_embedding, UUID(user_id), body.limit,
+               LIMIT $4""",
+            query_embedding, UUID(user_id), body.vault_id, body.limit,
         )
 
     results = [
@@ -169,7 +169,7 @@ async def semantic_search(body: SemanticSearchRequest, request: Request):
 
 @router.get("/embeddings/{document_id}/related", response_model=list[SearchResult])
 async def get_related_documents(document_id: UUID, request: Request, limit: int = 5):
-    """Find documents similar to a given document."""
+    """Find documents similar to a given document within the same vault."""
     user = get_user_from_headers(request)
     user_id = user["user_id"]
 
@@ -177,9 +177,8 @@ async def get_related_documents(document_id: UUID, request: Request, limit: int 
     async with pool.acquire() as conn:
         await register_vector(conn)
 
-        # Get the source document's embedding
         source = await conn.fetchrow(
-            "SELECT embedding FROM document_embeddings WHERE document_id = $1",
+            "SELECT embedding, vault_id FROM document_embeddings WHERE document_id = $1",
             document_id,
         )
         if not source:
@@ -189,10 +188,10 @@ async def get_related_documents(document_id: UUID, request: Request, limit: int 
             """SELECT document_id, title,
                       1 - (embedding <=> $1::vector) AS score
                FROM document_embeddings
-               WHERE user_id = $2 AND document_id != $3
+               WHERE user_id = $2 AND vault_id = $3 AND document_id != $4
                ORDER BY embedding <=> $1::vector
-               LIMIT $4""",
-            source["embedding"], UUID(user_id), document_id, limit,
+               LIMIT $5""",
+            source["embedding"], UUID(user_id), source["vault_id"], document_id, limit,
         )
 
     return [
@@ -222,7 +221,7 @@ async def delete_embedding(document_id: UUID, request: Request):
 
 
 @router.get("/topics/clusters")
-async def get_topic_clusters(request: Request, k: int = 0):
+async def get_topic_clusters(request: Request, vault_id: UUID, k: int = 0):
     """Cluster user's documents by topic using k-means on embeddings."""
     user = get_user_from_headers(request)
     user_id = user["user_id"]
@@ -234,8 +233,8 @@ async def get_topic_clusters(request: Request, k: int = 0):
         rows = await conn.fetch(
             """SELECT document_id, title, embedding
                FROM document_embeddings
-               WHERE user_id = $1""",
-            UUID(user_id),
+               WHERE user_id = $1 AND vault_id = $2""",
+            UUID(user_id), vault_id,
         )
 
     if len(rows) < 2:

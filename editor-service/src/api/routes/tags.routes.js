@@ -4,7 +4,6 @@ import { documentRepository } from '../../db/repositories/index.js';
 
 const router = express.Router();
 
-// Get all tags for a vault
 router.get('/vaults/:vaultId/tags', async (req, res, next) => {
   try {
     const { vaultId } = req.params;
@@ -15,7 +14,6 @@ router.get('/vaults/:vaultId/tags', async (req, res, next) => {
   }
 });
 
-// Create a new tag
 router.post('/vaults/:vaultId/tags', async (req, res, next) => {
   try {
     const { vaultId } = req.params;
@@ -35,7 +33,6 @@ router.post('/vaults/:vaultId/tags', async (req, res, next) => {
   }
 });
 
-// Update a tag
 router.put('/tags/:tagId', async (req, res, next) => {
   try {
     const { tagId } = req.params;
@@ -52,7 +49,6 @@ router.put('/tags/:tagId', async (req, res, next) => {
   }
 });
 
-// Delete a tag
 router.delete('/tags/:tagId', async (req, res, next) => {
   try {
     const { tagId } = req.params;
@@ -63,7 +59,6 @@ router.delete('/tags/:tagId', async (req, res, next) => {
   }
 });
 
-// Get tags for a document
 router.get('/documents/:documentId/tags', async (req, res, next) => {
   try {
     const { documentId } = req.params;
@@ -74,18 +69,15 @@ router.get('/documents/:documentId/tags', async (req, res, next) => {
   }
 });
 
-// Add tag to document
 router.post('/documents/:documentId/tags/:tagId', async (req, res, next) => {
   try {
     const { documentId, tagId } = req.params;
     
-    // Verify document exists
     const document = await documentRepository.getById(documentId);
     if (!document) {
       return res.status(404).json({ error: 'Document not found' });
     }
     
-    // Verify tag exists
     const tag = await tagRepository.getTagById(tagId);
     if (!tag) {
       return res.status(404).json({ error: 'Tag not found' });
@@ -98,7 +90,6 @@ router.post('/documents/:documentId/tags/:tagId', async (req, res, next) => {
   }
 });
 
-// Remove tag from document
 router.delete('/documents/:documentId/tags/:tagId', async (req, res, next) => {
   try {
     const { documentId, tagId } = req.params;
@@ -109,7 +100,6 @@ router.delete('/documents/:documentId/tags/:tagId', async (req, res, next) => {
   }
 });
 
-// Get documents by tag
 router.get('/tags/:tagId/documents', async (req, res, next) => {
   try {
     const { tagId } = req.params;

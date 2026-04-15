@@ -5,10 +5,6 @@ import { config } from '../../config/index.js';
 const SNAPSHOT_SIZE_LIMIT = config.snapshot.sizeLimitMB * 1024 * 1024;
 
 export class SnapshotRepository {
-    /**
-     * Load snapshot for a document
-     * Returns Buffer or null
-     */
     async load(documentId) {
         const docResult = await pool.query(
             'SELECT snapshot_storage FROM documents WHERE id = $1',
@@ -38,10 +34,6 @@ export class SnapshotRepository {
         }
     }
 
-    /**
-     * Save snapshot
-     * Automatically chooses storage (PostgreSQL or MinIO) based on size
-     */
     async save(documentId, snapshotBuffer) {
         const size = snapshotBuffer.length;
         const storage = size > SNAPSHOT_SIZE_LIMIT ? 'minio' : 'pg';
@@ -91,9 +83,6 @@ export class SnapshotRepository {
         });
     }
 
-    /**
-     * Get snapshot metadata
-     */
     async getInfo(documentId) {
         const result = await pool.query(
             `SELECT last_snapshot_at, snapshot_storage, snapshot_size_bytes
@@ -104,9 +93,6 @@ export class SnapshotRepository {
         return result.rows[0] || null;
     }
 
-    /**
-     * Delete snapshot
-     */
     async delete(documentId) {
         const info = await this.getInfo(documentId);
 

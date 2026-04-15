@@ -14,9 +14,8 @@ import crypto from 'crypto';
 
 const router = Router();
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = [
-    // Images
     'image/jpeg',
     'image/png',
     'image/gif',
@@ -25,7 +24,6 @@ const ALLOWED_MIME_TYPES = [
     'image/bmp',
     'image/tiff',
     
-    // Documents
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -34,7 +32,6 @@ const ALLOWED_MIME_TYPES = [
     'application/vnd.ms-powerpoint',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     
-    // Text
     'text/plain',
     'text/csv',
     'text/html',
@@ -43,13 +40,11 @@ const ALLOWED_MIME_TYPES = [
     'text/markdown',
     'text/xml',
     
-    // Code
     'application/json',
     'application/xml',
     'application/javascript',
     'application/typescript',
     
-    // Archives
     'application/zip',
     'application/x-zip-compressed',
     'application/x-rar-compressed',
@@ -57,7 +52,6 @@ const ALLOWED_MIME_TYPES = [
     'application/gzip',
     'application/x-7z-compressed',
     
-    // Media
     'video/mp4',
     'video/mpeg',
     'video/quicktime',
@@ -66,13 +60,9 @@ const ALLOWED_MIME_TYPES = [
     'audio/wav',
     'audio/ogg',
     
-    // Other
-    'application/octet-stream', // Generic binary
+    'application/octet-stream',
 ];
 
-/**
- * POST /attachments/initiate - Initiate attachment upload
- */
 router.post('/initiate',
     authenticateToken,
     validateBody(initiateAttachmentUploadSchema),
@@ -80,12 +70,10 @@ router.post('/initiate',
         try {
             const { documentId, filename, mimeType, size } = req.body;
 
-            // Validate file size
             if (size > MAX_FILE_SIZE) {
                 throw new ValidationError(`File size exceeds maximum allowed size of ${MAX_FILE_SIZE / 1024 / 1024}MB`);
             }
 
-            // Validate MIME type
             if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
                 apiLogger.warn('Rejected file upload - unsupported MIME type', {
                     mimeType,
@@ -95,18 +83,15 @@ router.post('/initiate',
                 throw new ValidationError(`File type "${mimeType}" is not allowed. Please upload a supported file type.`);
             }
 
-            // Check document access
             const hasAccess = await documentRepository.checkWriteAccess(documentId, req.user.userId);
             if (!hasAccess) {
                 throw new ForbiddenError('No write access to this document');
             }
 
-            // Generate unique attachment ID and MinIO path
             const attachmentId = crypto.randomUUID();
             const fileExtension = filename.split('.').pop();
             const minioPath = `${documentId}/${attachmentId}.${fileExtension}`;
 
-            // Create attachment record
             const attachment = await attachmentRepository.create(
                 documentId,
                 filename,
@@ -123,7 +108,6 @@ router.post('/initiate',
                 size
             });
 
-            // Return upload endpoint instead of presigned URL
             res.status(201).json({
                 attachmentId: attachment.id,
                 uploadUrl: `/api/editor-service/api/v1/attachments/${attachment.id}/upload`,
@@ -134,9 +118,6 @@ router.post('/initiate',
     }
 );
 
-/**
- * PUT /attachments/:id/upload - Upload attachment file
- */
 router.put('/:id/upload',
     authenticateToken,
     validateParams(attachmentIdParamSchema),
@@ -149,7 +130,6 @@ router.put('/:id/upload',
                 throw new NotFoundError('Attachment not found');
             }
 
-            // Check write access
             const hasAccess = await documentRepository.checkWriteAccess(
                 attachment.document_id,
                 req.user.userId
@@ -158,14 +138,12 @@ router.put('/:id/upload',
                 throw new ForbiddenError('No write access to this document');
             }
 
-            // Collect the file data from request body
             const chunks = [];
             req.on('data', chunk => chunks.push(chunk));
             req.on('end', async () => {
                 try {
                     const buffer = Buffer.concat(chunks);
 
-                    // Upload to MinIO
                     await minioService.upload(
                         config.minio.buckets.attachments,
                         attachment.minio_path,
@@ -206,9 +184,6 @@ router.put('/:id/upload',
     }
 );
 
-/**
- * GET /attachments/:id - Get attachment metadata and download URL
- */
 router.get('/:id',
     authenticateToken,
     validateParams(attachmentIdParamSchema),
@@ -221,13 +196,11 @@ router.get('/:id',
                 throw new NotFoundError('Attachment not found');
             }
 
-            // Check access
             const hasAccess = await attachmentRepository.checkAccess(id, req.user.userId);
             if (!hasAccess) {
                 throw new ForbiddenError('No access to this attachment');
             }
 
-            // Return public download URL (bypasses API Gateway auth)
             const downloadUrl = `http://localhost:3000/public/attachments/${id}/download`;
 
             res.json({
@@ -247,9 +220,6 @@ router.get('/:id',
     }
 );
 
-/**
- * GET /attachments/:id/download - Download attachment file (proxy)
- */
 router.get('/:id/download',
     async (req, res, next) => {
         try {
@@ -269,7 +239,6 @@ router.get('/:id/download',
                 throw new UnauthorizedError('No authentication token provided');
             }
 
-            // Verify token
             let userId;
             try {
                 console.log('Verifying token with auth service...');
@@ -298,7 +267,6 @@ router.get('/:id/download',
                 throw new NotFoundError('Attachment not found');
             }
 
-            // Check access
             const hasAccess = await attachmentRepository.checkAccess(id, userId);
             if (!hasAccess) {
                 throw new ForbiddenError('No access to this attachment');
@@ -306,7 +274,6 @@ router.get('/:id/download',
 
             console.log('Downloading file from MinIO:', attachment.minio_path);
 
-            // Download from MinIO
             const fileBuffer = await minioService.download(
                 config.minio.buckets.attachments,
                 attachment.minio_path
@@ -314,13 +281,11 @@ router.get('/:id/download',
 
             console.log('File downloaded, size:', fileBuffer.length);
 
-            // Set headers
             res.setHeader('Content-Type', attachment.content_type || 'application/octet-stream');
             res.setHeader('Content-Length', fileBuffer.length);
             res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(attachment.filename)}"`);
             res.setHeader('Cache-Control', 'private, max-age=3600');
 
-            // Send file
             res.send(fileBuffer);
         } catch (err) {
             console.error('Download error:', err);
@@ -329,16 +294,12 @@ router.get('/:id/download',
     }
 );
 
-/**
- * GET /documents/:documentId/attachments - Get all attachments for document
- */
 router.get('/documents/:documentId',
     authenticateToken,
     async (req, res, next) => {
         try {
             const { documentId } = req.params;
 
-            // Check document access
             const hasAccess = await documentRepository.checkAccess(documentId, req.user.userId);
             if (!hasAccess) {
                 throw new ForbiddenError('No access to this document');
@@ -346,7 +307,6 @@ router.get('/documents/:documentId',
 
             const attachments = await attachmentRepository.getByDocumentId(documentId);
 
-            // Generate download URLs for all attachments
             const attachmentsWithUrls = await Promise.all(
                 attachments.map(async (attachment) => {
                     const downloadUrl = await minioService.generateDownloadUrl(
@@ -376,9 +336,6 @@ router.get('/documents/:documentId',
     }
 );
 
-/**
- * DELETE /attachments/:id - Delete attachment
- */
 router.delete('/:id',
     authenticateToken,
     validateParams(attachmentIdParamSchema),
@@ -391,7 +348,6 @@ router.delete('/:id',
                 throw new NotFoundError('Attachment not found');
             }
 
-            // Check write access to document
             const hasAccess = await documentRepository.checkWriteAccess(
                 attachment.document_id,
                 req.user.userId
@@ -400,7 +356,6 @@ router.delete('/:id',
                 throw new ForbiddenError('No write access to this document');
             }
 
-            // Delete from MinIO
             try {
                 await minioService.delete(
                     config.minio.buckets.attachments,
@@ -413,7 +368,6 @@ router.delete('/:id',
                 });
             }
 
-            // Delete from database
             await attachmentRepository.delete(id);
 
             logAudit('attachment_deleted', req.user.userId, {

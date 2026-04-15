@@ -24,6 +24,7 @@ export const createDocumentSchema = z.object({
         .max(10, 'Icon must be less than 10 characters')
         .optional()
         .nullable(),
+    content: z.string().optional(),
 });
 
 export const updateDocumentSchema = z.object({

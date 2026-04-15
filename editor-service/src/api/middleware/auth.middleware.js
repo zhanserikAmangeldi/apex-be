@@ -1,9 +1,5 @@
 import { authService } from '../../services/auth.service.js';
 
-/**
- * Authenticate token middleware
- * Requires valid access token in Authorization header
- */
 export function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -37,10 +33,6 @@ export function authenticateToken(req, res, next) {
         });
 }
 
-/**
- * Optional authentication middleware
- * Doesn't fail if token is invalid, just doesn't set user
- */
 export function optionalAuth(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -60,9 +52,6 @@ export function optionalAuth(req, res, next) {
         });
 }
 
-/**
- * Require specific permission level
- */
 export function requirePermission(minPermission) {
     const permissionLevels = {
         'read': 1,

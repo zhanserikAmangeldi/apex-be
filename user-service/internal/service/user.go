@@ -140,24 +140,19 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest, userAgen
 }
 
 func (s *AuthService) GoogleLogin(ctx context.Context, code string, userAgent, ipAddress *string) (*dto.AuthResponse, error) {
-	// 1. Exchange code for token
 	token, err := s.exchangeGoogleCode(ctx, code)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange token: %w", err)
 	}
 
-	// 2. Get user info from Google
 	googleUser, err := s.getGoogleUserInfo(ctx, token.AccessToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user info: %w", err)
 	}
 
-	// 3. Find or create user
 	user, err := s.userRepo.GetByEmail(ctx, googleUser.Email)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			// Create new user
-			// We generate a random password since they are logging in via Google
 			randomPassword, _ := s.generateVerificationToken() // Re-using random string generator
 			hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(randomPassword), bcrypt.DefaultCost)
 			
@@ -167,7 +162,6 @@ func (s *AuthService) GoogleLogin(ctx context.Context, code string, userAgent, i
 				PasswordHash: string(hashedPassword),
 			}
 			
-			// If username exists, append random suffix
 			if _, err := s.userRepo.GetByUsername(ctx, newUser.Username); err == nil {
 				newUser.Username = fmt.Sprintf("%s_%s", newUser.Username, randomPassword[:4])
 			}
@@ -184,7 +178,6 @@ func (s *AuthService) GoogleLogin(ctx context.Context, code string, userAgent, i
 		}
 	}
 
-	// 4. Generate Tokens
 	accessToken, expiresAt, err := s.tokenManager.GenerateAccessToken(user.ID, user.Username, user.Email)
 	if err != nil {
 		return nil, err
@@ -219,13 +212,11 @@ func (s *AuthService) GoogleLogin(ctx context.Context, code string, userAgent, i
 }
 
 func (s *AuthService) GithubLogin(ctx context.Context, code string, userAgent, ipAddress *string) (*dto.AuthResponse, error) {
-	// 1. Exchange code for token
 	token, err := s.exchangeGithubCode(ctx, code)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange token: %w", err)
 	}
 
-	// 2. Get user info from GitHub
 	githubUser, err := s.getGithubUserInfo(ctx, token.AccessToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user info: %w", err)
@@ -235,11 +226,9 @@ func (s *AuthService) GithubLogin(ctx context.Context, code string, userAgent, i
 		return nil, errors.New("email is required but not provided by GitHub")
 	}
 
-	// 3. Find or create user
 	user, err := s.userRepo.GetByEmail(ctx, githubUser.Email)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			// Create new user
 			randomPassword, _ := s.generateVerificationToken()
 			hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(randomPassword), bcrypt.DefaultCost)
 
@@ -253,7 +242,6 @@ func (s *AuthService) GithubLogin(ctx context.Context, code string, userAgent, i
 				newUser.DisplayName = &githubUser.Name
 			}
 
-			// If username exists, append random suffix
 			if _, err := s.userRepo.GetByUsername(ctx, newUser.Username); err == nil {
 				newUser.Username = fmt.Sprintf("%s_%s", newUser.Username, randomPassword[:4])
 			}
@@ -270,7 +258,6 @@ func (s *AuthService) GithubLogin(ctx context.Context, code string, userAgent, i
 		}
 	}
 
-	// 4. Generate Tokens
 	accessToken, expiresAt, err := s.tokenManager.GenerateAccessToken(user.ID, user.Username, user.Email)
 	if err != nil {
 		return nil, err
@@ -321,14 +308,13 @@ func (s *AuthService) exchangeGithubCode(ctx context.Context, code string) (*oau
 	conf := &oauth2.Config{
 		ClientID:     cfg.GithubOAuthClientID,
 		ClientSecret: cfg.GithubOAuthClientSecret,
-		RedirectURL:  "", // GitHub doesn't strictly need RedirectURL on exchange if it was correct in frontend, but omitting is safer if not configured
+		RedirectURL:  "", 
 		Endpoint:     github.Endpoint,
 	}
 	return conf.Exchange(ctx, code)
 }
 
 func (s *AuthService) getGithubUserInfo(ctx context.Context, accessToken string) (*GithubUserInfo, error) {
-	// Get basic info
 	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user", nil)
 	if err != nil {
 		return nil, err
@@ -350,7 +336,6 @@ func (s *AuthService) getGithubUserInfo(ctx context.Context, accessToken string)
 		return nil, err
 	}
 
-	// If email is empty, fetch emails
 	if userInfo.Email == "" {
 		req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user/emails", nil)
 		if err != nil {
@@ -373,7 +358,7 @@ func (s *AuthService) getGithubUserInfo(ctx context.Context, accessToken string)
 						break
 					}
 				}
-				// If no primary verified found, take any verified
+
 				if userInfo.Email == "" {
 					for _, e := range emails {
 						if e.Verified {

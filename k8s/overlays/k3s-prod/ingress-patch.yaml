@@ -1,0 +1,39 @@
+- op: add
+  path: /metadata/annotations/cert-manager.io~1cluster-issuer
+  value: letsencrypt-prod
+- op: add
+  path: /metadata/annotations/nginx.ingress.kubernetes.io~1websocket-services
+  value: "editor-service"
+- op: replace
+  path: /spec/rules
+  value:
+    - host: zham.space
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8000
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: editor-service
+                port:
+                  number: 1234
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+- op: replace
+  path: /spec/tls
+  value:
+    - hosts:
+        - zham.space
+      secretName: apex-tls

@@ -13,9 +13,6 @@ import { apiLogger, logAudit } from '../../services/logger.service.js';
 
 const router = Router();
 
-/**
- * GET /vaults - Get all user's vaults
- */
 router.get('/', authenticateToken, async (req, res, next) => {
     try {
         const vaults = await vaultRepository.getAllByUserId(req.user.userId);
@@ -31,9 +28,6 @@ router.get('/', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * GET /vaults/shared - Get vaults shared with user
- */
 router.get('/shared', authenticateToken, async (req, res, next) => {
     try {
         const vaults = await vaultRepository.getSharedWithUser(req.user.userId);
@@ -49,9 +43,6 @@ router.get('/shared', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * POST /vaults - Create new vault
- */
 router.post('/',
     authenticateToken,
     validateBody(createVaultSchema),
@@ -79,9 +70,6 @@ router.post('/',
     }
 );
 
-/**
- * GET /vaults/:id - Get vault by ID
- */
 router.get('/:id',
     authenticateToken,
     validateParams(vaultIdParamSchema),
@@ -102,9 +90,6 @@ router.get('/:id',
     }
 );
 
-/**
- * PUT /vaults/:id - Update vault
- */
 router.put('/:id',
     authenticateToken,
     validateParams(vaultIdParamSchema),
@@ -138,9 +123,6 @@ router.put('/:id',
     }
 );
 
-/**
- * PATCH /vaults/:id - Partial update vault
- */
 router.patch('/:id',
     authenticateToken,
     validateParams(vaultIdParamSchema),
@@ -174,9 +156,6 @@ router.patch('/:id',
     }
 );
 
-/**
- * DELETE /vaults/:id - Delete vault
- */
 router.delete('/:id',
     authenticateToken,
     validateParams(vaultIdParamSchema),
@@ -199,9 +178,6 @@ router.delete('/:id',
     }
 );
 
-/**
- * GET /vaults/:id/documents - Get all documents in vault
- */
 router.get('/:id/documents',
     authenticateToken,
     validateParams(vaultIdParamSchema),
@@ -222,16 +198,13 @@ router.get('/:id/documents',
     }
 );
 
-/**
- * POST /vaults/:id/documents - Create document in vault
- */
 router.post('/:id/documents',
     authenticateToken,
     validateParams(vaultIdParamSchema),
     async (req, res, next) => {
         try {
             const { id: vaultId } = req.params;
-            const { title, parentId, isFolder } = req.body;
+            const { title, parentId, isFolder, content } = req.body;
 
             const hasAccess = await vaultRepository.checkWriteAccess(vaultId, req.user.userId);
             if (!hasAccess) {
@@ -246,6 +219,125 @@ router.post('/:id/documents',
                 isFolder || false
             );
 
+            if (content && !isFolder) {
+                const Y = await import('yjs');
+                const ydoc = new Y.Doc();
+                const xmlFragment = ydoc.getXmlFragment('default');
+                
+                const lines = content.split('\n');
+                
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    
+                    if (!trimmed) {
+                        const paragraph = new Y.XmlElement('paragraph');
+                        xmlFragment.push([paragraph]);
+                        continue;
+                    }
+                    
+                    const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+                    if (headingMatch) {
+                        const level = headingMatch[1].length;
+                        const text = headingMatch[2];
+                        const heading = new Y.XmlElement('heading');
+                        heading.setAttribute('level', level);
+                        const textNode = new Y.XmlText();
+                        textNode.insert(0, text);
+                        heading.insert(0, [textNode]);
+                        xmlFragment.push([heading]);
+                        continue;
+                    }
+                    
+                    if (trimmed === '---' || trimmed === '***') {
+                        const hr = new Y.XmlElement('horizontalRule');
+                        xmlFragment.push([hr]);
+                        continue;
+                    }
+                    
+                    const listMatch = trimmed.match(/^[-*]\s+(.+)$/);
+                    if (listMatch) {
+                        const text = listMatch[1];
+                        const listItem = new Y.XmlElement('listItem');
+                        const paragraph = new Y.XmlElement('paragraph');
+                        const textNode = new Y.XmlText();
+                        textNode.insert(0, text);
+                        paragraph.insert(0, [textNode]);
+                        listItem.insert(0, [paragraph]);
+                        
+                        const bulletList = new Y.XmlElement('bulletList');
+                        bulletList.insert(0, [listItem]);
+                        xmlFragment.push([bulletList]);
+                        continue;
+                    }
+                    
+                    const paragraph = new Y.XmlElement('paragraph');
+                    
+                    let remaining = trimmed;
+                    const tokens = [];
+                    
+                    const regex = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g;
+                    let lastIndex = 0;
+                    let match;
+                    
+                    while ((match = regex.exec(remaining)) !== null) {
+                        if (match.index > lastIndex) {
+                            tokens.push({ type: 'text', content: remaining.slice(lastIndex, match.index) });
+                        }
+                        
+                        const matched = match[0];
+                        if (matched.startsWith('**') && matched.endsWith('**')) {
+                            tokens.push({ type: 'bold', content: matched.slice(2, -2) });
+                        } else if (matched.startsWith('[')) {
+                            const linkMatch = matched.match(/\[([^\]]+)\]\(([^)]+)\)/);
+                            if (linkMatch) {
+                                tokens.push({ type: 'link', text: linkMatch[1], href: linkMatch[2] });
+                            }
+                        }
+                        
+                        lastIndex = regex.lastIndex;
+                    }
+                    
+                    if (lastIndex < remaining.length) {
+                        tokens.push({ type: 'text', content: remaining.slice(lastIndex) });
+                    }
+                    
+                    if (tokens.length === 0) {
+                        const textNode = new Y.XmlText();
+                        textNode.insert(0, trimmed);
+                        paragraph.push([textNode]);
+                    } else {
+                        for (const token of tokens) {
+                            if (token.type === 'text' && token.content) {
+                                const textNode = new Y.XmlText();
+                                textNode.insert(0, token.content);
+                                paragraph.push([textNode]);
+                            } else if (token.type === 'bold') {
+                                const textNode = new Y.XmlText();
+                                textNode.insert(0, token.content);
+                                textNode.format(0, token.content.length, { bold: true });
+                                paragraph.push([textNode]);
+                            } else if (token.type === 'link') {
+                                const textNode = new Y.XmlText();
+                                textNode.insert(0, token.text);
+                                textNode.format(0, token.text.length, { link: { href: token.href } });
+                                paragraph.push([textNode]);
+                            }
+                        }
+                    }
+                    
+                    xmlFragment.push([paragraph]);
+                }
+                
+                const update = Y.encodeStateAsUpdate(ydoc);
+                const { crdtService } = await import('../../services/crdt.service.js');
+                await crdtService.saveUpdate(document.id, update);
+                
+                const { indexDocumentNow } = await import('../../services/ai-indexer.service.js');
+                indexDocumentNow(document.id, ydoc, req.user.userId).catch(err => {
+                    console.warn('Failed to index new document:', err);
+                });
+            }
+
             logAudit('document_created_in_vault', req.user.userId, {
                 documentId: document.id,
                 vaultId,
@@ -259,9 +351,6 @@ router.post('/:id/documents',
     }
 );
 
-/**
- * POST /vaults/:id/share - Share vault with user
- */
 router.post('/:id/share',
     authenticateToken,
     validateParams(vaultIdParamSchema),
@@ -276,7 +365,6 @@ router.post('/:id/share',
                 throw new ForbiddenError('Only vault owner can share');
             }
 
-            // If email is provided, fetch userId from user-service
             if (email && !userId) {
                 try {
                     const userServiceUrl = process.env.USER_SERVICE_URL || 'http://user-service:8080';
@@ -327,16 +415,12 @@ router.post('/:id/share',
     }
 );
 
-/**
- * DELETE /vaults/:id/share/:userId - Remove user access
- */
 router.delete('/:id/share/:userId',
     authenticateToken,
     async (req, res, next) => {
         try {
             const { id, userId } = req.params;
 
-            // Check if user is owner or admin
             const vault = await vaultRepository.getByIdWithPermission(id, req.user.userId);
             if (!vault) {
                 throw new NotFoundError('Vault not found');
@@ -365,9 +449,6 @@ router.delete('/:id/share/:userId',
     }
 );
 
-/**
- * PATCH /vaults/:id/share/:userId - Update user permission
- */
 router.patch('/:id/share/:userId',
     authenticateToken,
     async (req, res, next) => {
@@ -375,7 +456,6 @@ router.patch('/:id/share/:userId',
             const { id, userId } = req.params;
             const { permission } = req.body;
 
-            // Check if user is owner or admin
             const vault = await vaultRepository.getByIdWithPermission(id, req.user.userId);
             if (!vault) {
                 throw new NotFoundError('Vault not found');
@@ -408,9 +488,6 @@ router.patch('/:id/share/:userId',
     }
 );
 
-/**
- * GET /vaults/:id/collaborators - Get vault collaborators
- */
 router.get('/:id/collaborators',
     authenticateToken,
     validateParams(vaultIdParamSchema),
@@ -418,7 +495,6 @@ router.get('/:id/collaborators',
         try {
             const { id } = req.params;
 
-            // Check if user is owner or admin
             const vault = await vaultRepository.getByIdWithPermission(id, req.user.userId);
             if (!vault) {
                 throw new NotFoundError('Vault not found');

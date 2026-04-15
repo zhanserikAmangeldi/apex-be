@@ -13,9 +13,6 @@ class MinioService {
         });
     }
 
-    /**
-     * Initialize all required buckets
-     */
     async initializeBuckets() {
         const buckets = Object.values(config.minio.buckets);
 
@@ -35,9 +32,6 @@ class MinioService {
         }
     }
 
-    /**
-     * Upload buffer to MinIO
-     */
     async upload(bucket, path, buffer, contentType = 'application/octet-stream') {
         const stream = Readable.from(buffer);
         await this.client.putObject(bucket, path, stream, buffer.length, {
@@ -45,9 +39,6 @@ class MinioService {
         });
     }
 
-    /**
-     * Download file from MinIO as Buffer
-     */
     async download(bucket, path) {
         return new Promise((resolve, reject) => {
             const chunks = [];
@@ -64,16 +55,10 @@ class MinioService {
         });
     }
 
-    /**
-     * Delete object from MinIO
-     */
     async delete(bucket, path) {
         await this.client.removeObject(bucket, path);
     }
 
-    /**
-     * Check if object exists
-     */
     async exists(bucket, path) {
         try {
             await this.client.statObject(bucket, path);
@@ -86,34 +71,21 @@ class MinioService {
         }
     }
 
-    /**
-     * Get object metadata
-     */
     async getInfo(bucket, path) {
         return await this.client.statObject(bucket, path);
     }
 
-    /**
-     * Generate presigned URL for upload (PUT)
-     */
     async generateUploadUrl(bucket, path, expirySeconds = 3600) {
         const url = await this.client.presignedPutObject(bucket, path, expirySeconds);
         return this.replaceHostname(url);
     }
 
-    /**
-     * Generate presigned URL for download (GET)
-     */
     async generateDownloadUrl(bucket, path, expirySeconds = 3600) {
         const url = await this.client.presignedGetObject(bucket, path, expirySeconds);
         return this.replaceHostname(url);
     }
 
-    /**
-     * Replace internal hostname with external one for browser access
-     */
     replaceHostname(url) {
-        // If external endpoint is configured and different from internal
         if (config.minio.externalEndpoint && config.minio.externalEndpoint !== config.minio.endpoint) {
             const internalHost = `${config.minio.endpoint}:${config.minio.port}`;
             const externalHost = `${config.minio.externalEndpoint}:${config.minio.externalPort}`;
@@ -122,9 +94,6 @@ class MinioService {
         return url;
     }
 
-    /**
-     * List objects in bucket with prefix
-     */
     async listObjects(bucket, prefix = '', recursive = true) {
         return new Promise((resolve, reject) => {
             const objects = [];

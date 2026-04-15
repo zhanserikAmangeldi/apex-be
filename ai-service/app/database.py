@@ -8,7 +8,6 @@ pool: asyncpg.Pool | None = None
 
 
 async def init_db():
-    """Create connection pool and initialize pgvector + tables."""
     global pool
     pool = await asyncpg.create_pool(
         dsn=settings.database_url,
@@ -17,15 +16,14 @@ async def init_db():
     )
 
     async with pool.acquire() as conn:
-        # Enable pgvector extension
         await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
 
-        # Create embeddings table
         await conn.execute(f"""
             CREATE TABLE IF NOT EXISTS document_embeddings (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 document_id UUID UNIQUE NOT NULL,
                 user_id UUID NOT NULL,
+                vault_id UUID NOT NULL,
                 title VARCHAR(500) DEFAULT '',
                 content_hash VARCHAR(64) NOT NULL,
                 embedding vector({settings.embedding_dimension}),
@@ -35,7 +33,11 @@ async def init_db():
             );
         """)
 
-        # HNSW index for fast cosine similarity search
+        await conn.execute("""
+            ALTER TABLE document_embeddings
+            ADD COLUMN IF NOT EXISTS vault_id UUID;
+        """)
+
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_embeddings_hnsw
             ON document_embeddings
@@ -46,6 +48,48 @@ async def init_db():
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_embeddings_user_id
             ON document_embeddings(user_id);
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_embeddings_vault_id
+            ON document_embeddings(vault_id);
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS chat_sessions (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL,
+                document_id UUID NOT NULL,
+                title VARCHAR(500) DEFAULT 'New Chat',
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id
+            ON chat_sessions(user_id);
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_chat_sessions_document_id
+            ON chat_sessions(document_id);
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                session_id UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+                role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+                content TEXT NOT NULL,
+                metadata JSONB DEFAULT '{}',
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id
+            ON chat_messages(session_id);
         """)
 
     logger.info("Database initialized with pgvector")

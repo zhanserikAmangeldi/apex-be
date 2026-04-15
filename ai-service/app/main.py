@@ -9,6 +9,8 @@ from app.database import init_db, close_db
 from app.embeddings import get_model
 from app.models import HealthResponse
 from app.routes.semantic import router as semantic_router
+from app.routes.chat import router as chat_router
+from app.routes.embeddings import router as embeddings_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,7 +23,6 @@ logger = logging.getLogger("ai-service")
 async def lifespan(app: FastAPI):
     logger.info(f"Starting AI Service (env={settings.env})")
     await init_db()
-    # Pre-load model on startup
     get_model()
     logger.info("AI Service ready")
     yield
@@ -36,6 +37,8 @@ app = FastAPI(
 )
 
 app.include_router(semantic_router)
+app.include_router(chat_router)
+app.include_router(embeddings_router, prefix="/api/v1")
 
 
 @app.get("/health", response_model=HealthResponse)

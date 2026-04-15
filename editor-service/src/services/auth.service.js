@@ -18,9 +18,6 @@ class AuthService {
         });
     }
 
-    /**
-     * Validate access token using auth service
-     */
     async validateToken(accessToken) {
         const cacheKey = `token:${accessToken}`;
         const cached = this.tokenCache.get(cacheKey);
@@ -54,9 +51,6 @@ class AuthService {
         }
     }
 
-    /**
-     * Refresh access token
-     */
     async refreshToken(refreshToken) {
         try {
             const response = await this.client.post('/api/v1/auth/refresh', {
@@ -73,24 +67,15 @@ class AuthService {
         }
     }
 
-    /**
-     * Invalidate cached token
-     */
     invalidateCache(accessToken) {
         const cacheKey = `token:${accessToken}`;
         this.tokenCache.del(cacheKey);
     }
 
-    /**
-     * Clear all cached tokens
-     */
     clearCache() {
         this.tokenCache.flushAll();
     }
 
-    /**
-     * Get user by ID (for internal use)
-     */
     async getUserById(userId, accessToken) {
         try {
             const response = await this.client.get(`/api/v1/users/${userId}`, {
