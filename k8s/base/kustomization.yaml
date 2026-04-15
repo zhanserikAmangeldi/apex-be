@@ -18,6 +18,7 @@ resources:
   - services/ai-service.yaml
   - services/content-scraper-service.yaml
   - services/api-gateway.yaml
+  - services/frontend.yaml
   # Networking
   - ingress.yaml
 

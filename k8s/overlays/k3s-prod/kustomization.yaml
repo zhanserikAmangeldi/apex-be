@@ -10,19 +10,22 @@ resources:
 images:
   - name: apex/api-gateway
     newName: zhanserik05/apex-api-gateway
-    newTag: latest
+    newTag: latest # apex-api-gateway
   - name: apex/user-service
     newName: zhanserik05/apex-user-service
-    newTag: latest
+    newTag: latest # apex-user-service
   - name: apex/editor-service
     newName: zhanserik05/apex-editor-service
-    newTag: latest
+    newTag: latest # apex-editor-service
   - name: apex/ai-service
     newName: zhanserik05/apex-ai-service
-    newTag: latest
+    newTag: latest # apex-ai-service
   - name: apex/content-scraper-service
     newName: zhanserik05/apex-content-scraper-service
-    newTag: latest
+    newTag: latest # apex-content-scraper-service
+  - name: apex/frontend
+    newName: zhanserik05/apex-frontend
+    newTag: latest # apex-frontend
 
 patches:
   # imagePullPolicy на Always для всех Deployments
@@ -74,6 +77,13 @@ patches:
   - target:
       kind: Deployment
       name: content-scraper-service
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: Deployment
+      name: frontend
     patch: |-
       - op: replace
         path: /spec/replicas
@@ -229,6 +239,19 @@ patches:
           limits:
             cpu: 500m
             memory: 512Mi
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
 
 
   # PVC sizes

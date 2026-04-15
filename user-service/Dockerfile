@@ -1,3 +1,4 @@
+# Build: linux/amd64
 FROM golang:1.25-alpine AS builder
 
 WORKDIR /app

@@ -1,3 +1,4 @@
+# Build: linux/amd64
 FROM python:3.11-slim
 
 WORKDIR /app

@@ -1,9 +1,6 @@
 - op: add
   path: /metadata/annotations/cert-manager.io~1cluster-issuer
   value: letsencrypt-prod
-- op: replace
-  path: /metadata/annotations/nginx.org~1websocket-services
-  value: "editor-service"
 - op: add
   path: /metadata/annotations/nginx.ingress.kubernetes.io~1websocket-services
   value: "editor-service"
@@ -31,9 +28,9 @@
             pathType: Prefix
             backend:
               service:
-                name: api-gateway
+                name: frontend
                 port:
-                  number: 8000
+                  number: 80
 - op: replace
   path: /spec/tls
   value:
