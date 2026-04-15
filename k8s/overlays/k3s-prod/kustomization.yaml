@@ -6,7 +6,7 @@ namespace: apex-prod
 resources:
   - ../../base
 
-# Используйте Docker Hub образы
+# Docker Hub образы
 images:
   - name: apex/api-gateway
     newName: zhanserik05/apex-api-gateway
@@ -42,31 +42,28 @@ patches:
         value:
           - name: dockerhub-secret
 
-  # Replicas
+  # ===== ВСЕ replicas = 1 (экономия RAM на маленькой ноде) =====
   - target:
       kind: Deployment
       name: api-gateway
     patch: |-
       - op: replace
         path: /spec/replicas
-        value: 2
-
+        value: 1
   - target:
       kind: Deployment
       name: user-service
     patch: |-
       - op: replace
         path: /spec/replicas
-        value: 2
-
+        value: 1
   - target:
       kind: Deployment
       name: editor-service
     patch: |-
       - op: replace
         path: /spec/replicas
-        value: 2
-
+        value: 1
   - target:
       kind: Deployment
       name: ai-service
@@ -74,7 +71,6 @@ patches:
       - op: replace
         path: /spec/replicas
         value: 1
-
   - target:
       kind: Deployment
       name: content-scraper-service
@@ -83,21 +79,157 @@ patches:
         path: /spec/replicas
         value: 1
 
-  - target:
-      kind: Deployment
-      name: celery-worker
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 1
 
+  # ===== Минимальные resource requests для 2GB ноды =====
+  # Postgres instances: 64Mi request each
   - target:
-      kind: Deployment
-      name: celery-beat
+      kind: StatefulSet
+      name: user-postgres
     patch: |-
       - op: replace
-        path: /spec/replicas
-        value: 1
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+  - target:
+      kind: StatefulSet
+      name: editor-postgres
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+  - target:
+      kind: StatefulSet
+      name: ai-postgres
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+  - target:
+      kind: StatefulSet
+      name: scraper-postgres
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+  # Redis & MinIO
+  - target:
+      kind: Deployment
+      name: redis
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+  - target:
+      kind: Deployment
+      name: minio
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+  # App services
+  - target:
+      kind: Deployment
+      name: api-gateway
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            cpu: 500m
+            memory: 128Mi
+  - target:
+      kind: Deployment
+      name: user-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+  - target:
+      kind: Deployment
+      name: editor-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+  - target:
+      kind: Deployment
+      name: ai-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
+  - target:
+      kind: Deployment
+      name: content-scraper-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
 
   # PVC sizes
   - target:
@@ -107,7 +239,6 @@ patches:
       - op: replace
         path: /spec/resources/requests/storage
         value: 10Gi
-
   - target:
       kind: PersistentVolumeClaim
       name: editor-postgres-pvc
@@ -115,7 +246,6 @@ patches:
       - op: replace
         path: /spec/resources/requests/storage
         value: 10Gi
-
   - target:
       kind: PersistentVolumeClaim
       name: ai-postgres-pvc
@@ -123,7 +253,6 @@ patches:
       - op: replace
         path: /spec/resources/requests/storage
         value: 10Gi
-
   - target:
       kind: PersistentVolumeClaim
       name: scraper-postgres-pvc
@@ -131,7 +260,6 @@ patches:
       - op: replace
         path: /spec/resources/requests/storage
         value: 5Gi
-
   - target:
       kind: PersistentVolumeClaim
       name: minio-pvc
@@ -140,7 +268,7 @@ patches:
         path: /spec/resources/requests/storage
         value: 20Gi
 
-  # Ingress override для k3s-prod
+  # Ingress override
   - target:
       kind: Ingress
       name: apex-ingress

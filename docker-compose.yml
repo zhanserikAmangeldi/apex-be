@@ -229,40 +229,6 @@ services:
     networks:
       - apex-network
 
-  celery-worker:
-    build: ./content-scraper-service
-    container_name: celery-worker
-    command: celery -A app.tasks worker --loglevel=info
-    depends_on:
-      scraper-postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://scraper:${SCRAPER_DB_PASSWORD:-change-me-in-production}@scraper-postgres:5432/scraper_db
-      - REDIS_URL=redis://redis:6379/0
-      - ENCRYPTION_KEY=${SCRAPER_ENCRYPTION_KEY}
-      - JWT_SECRET=${JWT_SECRET}
-      - AI_SERVICE_URL=http://ai-service:8090
-      - EDITOR_SERVICE_URL=http://editor-service:3000
-    networks:
-      - apex-network
-
-  celery-beat:
-    build: ./content-scraper-service
-    container_name: celery-beat
-    command: celery -A app.tasks beat --loglevel=info
-    depends_on:
-      redis:
-        condition: service_healthy
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://scraper:${SCRAPER_DB_PASSWORD:-change-me-in-production}@scraper-postgres:5432/scraper_db
-      - REDIS_URL=redis://redis:6379/0
-      - ENCRYPTION_KEY=${SCRAPER_ENCRYPTION_KEY}
-      - JWT_SECRET=${JWT_SECRET}
-    networks:
-      - apex-network
-
   # ===========================================
   # AI SERVICE
   # ===========================================
