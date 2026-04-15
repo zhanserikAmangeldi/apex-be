@@ -25,7 +25,7 @@ images:
     newTag: bded063 # apex-content-scraper-service
   - name: apex/frontend
     newName: zhanserik05/apex-frontend
-    newTag: 4053e58 # apex-frontend
+    newTag: f668370 # apex-frontend
 
 patches:
   # imagePullPolicy на Always для всех Deployments
