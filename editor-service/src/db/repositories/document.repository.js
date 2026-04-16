@@ -273,11 +273,11 @@ export class DocumentRepository {
         const params = [userId, searchPattern];
         
         if (vaultId) {
-            sql += ` AND d.vault_id = ${params.length + 1}`;
+            sql += ` AND d.vault_id = $${params.length + 1}`;
             params.push(vaultId);
         }
         
-        sql += ` ORDER BY d.title ASC LIMIT ${params.length + 1}`;
+        sql += ` ORDER BY d.title ASC LIMIT $${params.length + 1}`;
         params.push(limit);
         
         const result = await pool.query(sql, params);

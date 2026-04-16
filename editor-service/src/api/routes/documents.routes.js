@@ -177,7 +177,7 @@ router.post('/',
                 
                 apiLogger.info('Initial content saved for document', { documentId: document.id, contentLength: content.length });
                 
-                const { indexDocumentNow } = await import('../services/ai-indexer.service.js');
+                const { indexDocumentNow } = await import('../../services/ai-indexer.service.js');
                 indexDocumentNow(document.id, ydoc, req.user.userId).catch(err => {
                     apiLogger.warn({ err, documentId: document.id }, 'Failed to index new document');
                 });
